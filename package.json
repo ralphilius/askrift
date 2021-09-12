@@ -1,0 +1,20 @@
+{
+  "name": "@ralphilius/askrift",
+  "version": "0.0.1",
+  "repository": "https://github.com/ralphilius/vercel-subscription-hooks",
+  "author": "ralphilius <4253551+ralphilius@users.noreply.github.com>",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@vercel/node": "^1.12.1",
+    "crypto": "^1.0.1",
+    "php-serialize": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^16.9.1"
+  }
+}
