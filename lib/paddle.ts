@@ -1,7 +1,7 @@
 import { VercelRequest } from "@vercel/node";
 import { Request } from 'express';
 import * as crypto from "crypto";
-import Serialize from 'php-serialize';
+import { serialize } from 'php-serialize';
 import Askrift from "./index";
 import { SubscriptionCancelled, SubscriptionCreated, SubscriptionPaymentFailed, SubscriptionPaymentRefunded, SubscriptionPaymentSucceeded, SubscriptionUpdated } from "../types/paddle/subscription";
 import { isObject } from "./utils";
@@ -20,10 +20,10 @@ function ksort(obj: { [k: string]: any }) {
   return sortedObj;
 }
 
-function promisify<T>(obj: any, key: string): Promise<T | null>{
-  return new Promise<T | null> ((resolve, reject) => {
+function promisify<T>(obj: any, key: string): Promise<T | null> {
+  return new Promise<T | null>((resolve, reject) => {
     if (isObject(obj)) {
-      if(obj['alert_name'] == key){ 
+      if (obj['alert_name'] == key) {
         resolve(obj as T);
       } else {
         resolve(null)
@@ -35,7 +35,7 @@ function promisify<T>(obj: any, key: string): Promise<T | null>{
 }
 
 function parseBody<T>(obj: any, key: string): T | null {
-  if(obj['alert_name'] == key) return obj as T;
+  if (obj['alert_name'] == key) return obj as T;
   return null;
 }
 
@@ -49,7 +49,7 @@ export default class Paddle implements Askrift<"paddle"> {
   onSubscriptionCreated(): Promise<SubscriptionCreated | null> {
     return promisify(this._req.body, 'subscription_created');
   }
-  
+
   onSubscriptionCanceled(): Promise<SubscriptionCancelled | null> {
     return promisify(this._req.body, 'subscription_cancelled');
   }
@@ -88,7 +88,7 @@ export default class Paddle implements Askrift<"paddle"> {
       }
     }
     // Serialise remaining fields of jsonObj
-    const serialized = Serialize.serialize(jsonObj);
+    const serialized = serialize(jsonObj);
     const verifier = crypto.createVerify('sha1');
     verifier.update(serialized);
     verifier.end();
