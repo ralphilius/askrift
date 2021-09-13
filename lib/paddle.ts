@@ -34,11 +34,6 @@ function promisify<T>(obj: any, key: string): Promise<T | null> {
   });
 }
 
-function parseBody<T>(obj: any, key: string): T | null {
-  if (obj['alert_name'] == key) return obj as T;
-  return null;
-}
-
 export default class Paddle implements Askrift<"paddle"> {
   _req;
   constructor(req: VercelRequest | Request) {
@@ -53,15 +48,19 @@ export default class Paddle implements Askrift<"paddle"> {
   onSubscriptionCanceled(): Promise<SubscriptionCancelled | null> {
     return promisify(this._req.body, 'subscription_cancelled');
   }
+
   onSubscriptionUpdated(): Promise<SubscriptionUpdated | null> {
     return promisify(this._req.body, 'subscription_updated');
   }
+
   onPaymentSucceeded(): Promise<SubscriptionPaymentSucceeded | null> {
     return promisify(this._req.body, 'subscription_payment_succeeded');
   }
+
   onPaymentFailed(): Promise<SubscriptionPaymentFailed | null> {
     return promisify(this._req.body, 'subscription_payment_failed');
   }
+  
   onPaymentRefunded(): Promise<SubscriptionPaymentRefunded | null> {
     return promisify(this._req.body, 'subscription_payment_refunded');
   }

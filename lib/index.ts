@@ -9,27 +9,27 @@ import {
   SubscriptionUpdated } from "../types/paddle/subscription";
 import Paddle from "./paddle";
 
-export default abstract class Askrift<SC extends keyof namesTyped> implements ISubscriptionCreated<SC> {
-  onSubscriptionCanceled(): Promise<namesTyped[SC]["canceled"]> {
+export default abstract class Askrift<SC extends keyof TypesMap> implements ISubscriptionCreated<SC> {
+  onSubscriptionCanceled(): Promise<TypesMap[SC]["canceled"]> {
     throw new Error("Method not implemented.");
   }
-  onSubscriptionUpdated(): Promise<namesTyped[SC]["updated"]> {
+  onSubscriptionUpdated(): Promise<TypesMap[SC]["updated"]> {
     throw new Error("Method not implemented.");
   }
-  onPaymentSucceeded(): Promise<namesTyped[SC]["paymentSucceeded"]> {
+  onPaymentSucceeded(): Promise<TypesMap[SC]["paymentSucceeded"]> {
     throw new Error("Method not implemented.");
   }
-  onPaymentFailed(): Promise<namesTyped[SC]["paymentFailed"]> {
+  onPaymentFailed(): Promise<TypesMap[SC]["paymentFailed"]> {
     throw new Error("Method not implemented.");
   }
-  onPaymentRefunded(): Promise<namesTyped[SC]["paymentRefunded"]> {
+  onPaymentRefunded(): Promise<TypesMap[SC]["paymentRefunded"]> {
     throw new Error("Method not implemented.");
   }
-  onSubscriptionCreated(): Promise<namesTyped[SC]['created']> {
+  onSubscriptionCreated(): Promise<TypesMap[SC]['created']> {
     throw new Error("Method not implemented.");
   }
 
-  static initialize<T extends keyof namesTyped>(type: T, body: VercelRequest | Request): Askrift<T> {
+  static initialize<T extends keyof TypesMap>(type: T, body: VercelRequest | Request): Askrift<T> {
     return new Paddle(body);
   };
 
@@ -37,7 +37,7 @@ export default abstract class Askrift<SC extends keyof namesTyped> implements IS
   abstract validPayload(): boolean;
 }
 
-type namesTyped = {
+type TypesMap = {
   paddle: {
     created: SubscriptionCreated | null
     updated: SubscriptionUpdated | null
@@ -48,13 +48,13 @@ type namesTyped = {
   }
 }
 
-interface ISubscriptionCreated<SC extends keyof namesTyped> {
-  onSubscriptionCreated(): Promise<namesTyped[SC]['created']>
-  onSubscriptionCanceled(): Promise<namesTyped[SC]['canceled']>
-  onSubscriptionUpdated(): Promise<namesTyped[SC]['updated']>
-  onPaymentSucceeded(): Promise<namesTyped[SC]['paymentSucceeded']>;
-  onPaymentFailed(): Promise<namesTyped[SC]['paymentFailed']>;
-  onPaymentRefunded(): Promise<namesTyped[SC]['paymentRefunded']>;
+interface ISubscriptionCreated<Vendor extends keyof TypesMap> {
+  onSubscriptionCreated(): Promise<TypesMap[Vendor]['created']>
+  onSubscriptionCanceled(): Promise<TypesMap[Vendor]['canceled']>
+  onSubscriptionUpdated(): Promise<TypesMap[Vendor]['updated']>
+  onPaymentSucceeded(): Promise<TypesMap[Vendor]['paymentSucceeded']>;
+  onPaymentFailed(): Promise<TypesMap[Vendor]['paymentFailed']>;
+  onPaymentRefunded(): Promise<TypesMap[Vendor]['paymentRefunded']>;
 }
 
 type Callback<T> = (data: T) => void;
