@@ -1,3 +1,3 @@
 export function isObject(obj: any) {
-  return obj !== undefined && obj !== null && obj.constructor == Object;
+  return obj !== undefined && obj !== null && typeof obj == 'object';
 }
