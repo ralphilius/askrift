@@ -1,7 +1,7 @@
 {
   "name": "@ralphilius/askrift",
   "version": "0.0.2",
-  "repository": "https://github.com/ralphilius/vercel-subscription-hooks",
+  "repository": "https://github.com/ralphilius/askrift",
   "author": "ralphilius <4253551+ralphilius@users.noreply.github.com>",
   "license": "MIT",
   "main": "dist/index.js",
