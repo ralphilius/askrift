@@ -42,6 +42,7 @@ function parseBody<T>(obj: any, key: string): T | null {
 export default class Paddle implements Askrift<"paddle"> {
   _req;
   constructor(req: VercelRequest | Request) {
+    if (!process.env.PADDLE_PUBLIC_KEY) throw "PADDLE_PUBLIC_KEY is required";
     this._req = req;
   }
 
@@ -70,7 +71,6 @@ export default class Paddle implements Askrift<"paddle"> {
   }
 
   validPayload(): boolean {
-    if (!process.env.PADDLE_PUBLIC_KEY) throw "PADDLE_PUBLIC_KEY is required";
     let jsonObj = (this._req as any).body;
     // Grab p_signature
     const mySig = Buffer.from(jsonObj.p_signature, 'base64');
