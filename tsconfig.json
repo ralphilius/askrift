@@ -1,24 +1,26 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es2020",
     "lib": ["esnext", "es7", "es6", "dom"],
     "declaration": true,
     "outDir": "dist",
     "esModuleInterop": true,
     "module": "commonjs",
+    "sourceMap": true,
+    "skipLibCheck": true,
     "moduleResolution": "node",
     "strict": true,
     "allowJs": true,
-    "sourceMap": true,
     "inlineSources": true,
     "types": [
       "node"
     ],
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
+    "typeRoots": ["./types"],
   },
+  
   "include": [
-    "api/**/*",
     "lib/**/*",
     "types/**/*"
   ],
