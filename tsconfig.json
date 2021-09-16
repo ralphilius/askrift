@@ -18,12 +18,11 @@
     ],
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
-    "typeRoots": ["./types"],
+    "typeRoots": ["src/types"],
   },
   
   "include": [
-    "lib/**/*",
-    "types/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "./tests/",

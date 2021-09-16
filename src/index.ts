@@ -1,7 +1,7 @@
 import { VercelRequest } from "@vercel/node";
 import { Request } from 'express';
-import Askrift, { TypesMap } from "./askrift";
-import Paddle from "./paddle";
+import Askrift, { TypesMap } from "./lib/askrift";
+import Paddle from "./lib/paddle";
 
 export default Askrift;
 
