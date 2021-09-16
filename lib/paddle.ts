@@ -34,10 +34,12 @@ function promisify<T>(obj: any, key: string): Promise<T | null> {
   });
 }
 
-export default class Paddle implements Askrift<"paddle"> {
+export default class Paddle extends Askrift<"paddle"> {
   _req;
-  constructor(req: VercelRequest | Request) {
+  constructor(req: VercelRequest | Request, debugged?: boolean) {
+    super(debugged);
     if (!process.env.PADDLE_PUBLIC_KEY) throw "PADDLE_PUBLIC_KEY is required";
+    this.debug("PADDLE_PUBLIC_KEY", process.env.PADDLE_PUBLIC_KEY);
     this._req = req;
   }
 

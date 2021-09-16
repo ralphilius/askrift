@@ -10,28 +10,24 @@ import {
 import Paddle from "./paddle";
 
 export default abstract class Askrift<SC extends keyof TypesMap> implements ISubscriptionCreated<SC> {
-  onSubscriptionCanceled(): Promise<TypesMap[SC]["canceled"]> {
-    throw new Error("Method not implemented.");
+  private _debug: boolean;
+  constructor(debug?: boolean){
+    this._debug = debug || false;
   }
-  onSubscriptionUpdated(): Promise<TypesMap[SC]["updated"]> {
-    throw new Error("Method not implemented.");
-  }
-  onPaymentSucceeded(): Promise<TypesMap[SC]["paymentSucceeded"]> {
-    throw new Error("Method not implemented.");
-  }
-  onPaymentFailed(): Promise<TypesMap[SC]["paymentFailed"]> {
-    throw new Error("Method not implemented.");
-  }
-  onPaymentRefunded(): Promise<TypesMap[SC]["paymentRefunded"]> {
-    throw new Error("Method not implemented.");
-  }
-  onSubscriptionCreated(): Promise<TypesMap[SC]['created']> {
-    throw new Error("Method not implemented.");
-  }
+  abstract onSubscriptionCanceled(): Promise<TypesMap[SC]["canceled"]>;
+  abstract onSubscriptionUpdated(): Promise<TypesMap[SC]["updated"]>;
+  abstract onPaymentSucceeded(): Promise<TypesMap[SC]["paymentSucceeded"]>;
+  abstract onPaymentFailed(): Promise<TypesMap[SC]["paymentFailed"]>;
+  abstract onPaymentRefunded(): Promise<TypesMap[SC]["paymentRefunded"]>;
+  abstract onSubscriptionCreated(): Promise<TypesMap[SC]['created']>;
 
-  static initialize<T extends keyof TypesMap>(type: T, body: VercelRequest | Request): Askrift<T> {
-    return new Paddle(body);
+  static initialize<T extends keyof TypesMap>(type: T, body: VercelRequest | Request, debug?: boolean): Askrift<T> {
+    return new Paddle(body, debug);
   };
+
+  public debug(msg: any, ...optionalParams: any[]){
+    if(this._debug) console.log(msg, optionalParams);
+  }
 
   abstract validRequest(): boolean;
   abstract validPayload(): boolean;
