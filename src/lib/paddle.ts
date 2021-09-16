@@ -6,11 +6,6 @@ import Askrift from "./askrift";
 import { SubscriptionCancelled, SubscriptionCreated, SubscriptionPaymentFailed, SubscriptionPaymentRefunded, SubscriptionPaymentSucceeded, SubscriptionUpdated } from "../types/paddle/subscription";
 import { isObject } from "./utils";
 
-// Public key from your paddle dashboard
-const pubKey = `-----BEGIN PUBLIC KEY-----
-${process.env.PADDLE_PUBLIC_KEY}
------END PUBLIC KEY-----`
-
 function ksort(obj: { [k: string]: any }) {
   const keys = Object.keys(obj).sort();
   let sortedObj: { [k: string]: any } = {};
@@ -35,12 +30,14 @@ function promisify<T>(obj: any, key: string): Promise<T | null> {
 }
 
 export default class Paddle extends Askrift<"paddle"> {
-  _req;
+  private _req;
+  private _pubKey: string;
   constructor(req: VercelRequest | Request, debugged?: boolean) {
     super(debugged);
     if (!process.env.PADDLE_PUBLIC_KEY) throw "PADDLE_PUBLIC_KEY is required";
     this.debug("PADDLE_PUBLIC_KEY", process.env.PADDLE_PUBLIC_KEY);
     this._req = req;
+    this._pubKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY}\n-----END PUBLIC KEY-----`
   }
 
   onSubscriptionCreated(): Promise<SubscriptionCreated | null> {
@@ -72,6 +69,14 @@ export default class Paddle extends Askrift<"paddle"> {
   }
 
   validPayload(): boolean {
+    try {
+      if (typeof this._req.body == 'string') this._req.body = JSON.parse(this._req.body);
+    } catch (error) {
+      this.debug(error);
+      return false;
+    }
+    
+    console.log(this._pubKey);
     let jsonObj = (this._req as any).body;
     // Grab p_signature
     const mySig = Buffer.from(jsonObj.p_signature, 'base64');
@@ -94,7 +99,7 @@ export default class Paddle extends Askrift<"paddle"> {
     verifier.update(serialized);
     verifier.end();
 
-    const verification = verifier.verify(pubKey, mySig);
+    const verification = verifier.verify(this._pubKey, mySig);
     return verification;
   }
 }
