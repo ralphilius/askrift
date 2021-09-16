@@ -2,7 +2,7 @@ import { VercelRequest } from "@vercel/node";
 import { Request } from 'express';
 import * as crypto from "crypto";
 import { serialize } from 'php-serialize';
-import Askrift from "./index";
+import Askrift from "./askrift";
 import { SubscriptionCancelled, SubscriptionCreated, SubscriptionPaymentFailed, SubscriptionPaymentRefunded, SubscriptionPaymentSucceeded, SubscriptionUpdated } from "../types/paddle/subscription";
 import { isObject } from "./utils";
 
