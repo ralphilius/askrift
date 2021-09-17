@@ -10,7 +10,9 @@ jobs:
         with:
           node-version: 10
       - run: npm install
-      - run: npm run test
+      - env: 
+          PADDLE_PUBLIC_KEY: ${{ secrets.PADDLE_PUBLIC_KEY }}
+        run: npm run test
       - run: npm run build
       - uses: JS-DevTools/npm-publish@v1
         with:
