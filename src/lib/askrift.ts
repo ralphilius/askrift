@@ -21,7 +21,7 @@ export default abstract class Askrift<SC extends keyof TypesMap> implements ISub
   abstract onSubscriptionCreated(): Promise<TypesMap[SC]['created']>;
 
   public debug(msg: any, ...optionalParams: any[]){
-    if(this._debug) console.log(msg, optionalParams);
+    if(this._debug) console.log(msg, ...optionalParams);
   }
 
   abstract validRequest(): boolean;
