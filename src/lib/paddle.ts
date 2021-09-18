@@ -35,9 +35,8 @@ export default class Paddle extends Askrift<"paddle"> {
   constructor(req: VercelRequest | Request, debugged?: boolean) {
     super(debugged);
     if (!process.env.PADDLE_PUBLIC_KEY) throw "PADDLE_PUBLIC_KEY is required";
-    this.debug("PADDLE_PUBLIC_KEY", process.env.PADDLE_PUBLIC_KEY);
     this._req = req;
-    this._pubKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY}\n-----END PUBLIC KEY-----`
+    this._pubKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY?.replace(/\\n/g, '\n')}\n-----END PUBLIC KEY-----`
   }
 
   onSubscriptionCreated(): Promise<SubscriptionCreated | null> {
@@ -76,7 +75,7 @@ export default class Paddle extends Askrift<"paddle"> {
       return false;
     }
     
-    console.log(this._pubKey);
+    this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
     let jsonObj = (this._req as any).body;
     // Grab p_signature
     const mySig = Buffer.from(jsonObj.p_signature, 'base64');
