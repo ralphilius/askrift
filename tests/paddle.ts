@@ -28,7 +28,7 @@ const badReq: any = {...baseReq, ...{
 
 describe('library works with paddle', function () {
   let askriftPd: Askrift<'paddle'>;
-  let askriftBadPd;
+  let askriftBadPd: Askrift<'paddle'>;;
   it('should initalize successfully', (done) => {
     askriftPd = initialize('paddle', goodReq);
     askriftBadPd = initialize('paddle', badReq);
