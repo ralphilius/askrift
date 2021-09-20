@@ -46,12 +46,12 @@ describe('library works with paddle', function () {
   });
 
   it('should not pass invalid request', (done) => {
-    assert.equal(askriftPd.validRequest(), false);
+    assert.equal(askriftBadPd.validRequest(), false);
     done();
   });
 
   it('should not pass invalid payload', (done) => {
-    assert.equal(askriftPd.validPayload(), false);
+    assert.equal(askriftBadPd.validPayload(), false);
     done();
   });
 
