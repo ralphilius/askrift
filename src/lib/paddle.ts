@@ -68,6 +68,7 @@ export default class Paddle extends Askrift<"paddle"> {
   }
 
   validPayload(): boolean {
+    this.debug(this._req.body);
     try {
       if (typeof this._req.body == 'string') this._req.body = JSON.parse(this._req.body);
     } catch (error) {
