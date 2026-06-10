@@ -2,6 +2,8 @@ import Askrift, { initialize, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
+import * as crypto from "crypto";
+import { serialize } from 'php-serialize';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -83,6 +85,18 @@ describe('library works with paddle', function () {
   it('should pass valid payload', (done) => {
     assert.equal(askriftPd.validPayload(), true);
     done();
+  });
+
+  it('should validate url-encoded payloads with content-type parameters', (done) => {
+    assert.equal(askriftUrlEncodedPd.validRequest(), true);
+    assert.equal(askriftUrlEncodedPd.validPayload(), true);
+    done();
+  });
+
+  it('should keep payloads reusable after validation', async () => {
+    assert.equal(askriftPd.validPayload(), true);
+    const event = await askriftPd.onPaymentSucceeded();
+    assert.equal(event?.p_signature, validPayload.p_signature);
   });
 
   it('should not pass invalid request', (done) => {
