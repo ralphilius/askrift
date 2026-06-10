@@ -128,4 +128,12 @@ describe('provider registry initialization', function () {
       'Unsupported provider: stripe'
     );
   });
+
+  it('throws UnsupportedProviderError for unsupported object prototype keys', () => {
+    assert.throws(
+      () => initialize('__proto__', createReq('POST')),
+      UnsupportedProviderError,
+      'Unsupported provider: __proto__'
+    );
+  });
 });

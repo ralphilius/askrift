@@ -31,11 +31,10 @@ function resolveDebugOption(options?: InitializeOptions | boolean): boolean | un
 export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<T>;
 export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<keyof TypesMap>;
 export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<keyof TypesMap> {
-  const Provider = providers[type as keyof TypesMap];
-
-  if (!Provider) {
+  if (!Object.prototype.hasOwnProperty.call(providers, type)) {
     throw new UnsupportedProviderError(type);
   }
 
+  const Provider = providers[type as keyof TypesMap];
   return new Provider(request, resolveDebugOption(options));
 };
