@@ -25,6 +25,7 @@ function parseBody(body: any): PaddlePayload | null {
     const parsed = JSON.parse(body);
     return isObject(parsed) ? parsed : null;
   } catch (error) {
+    if (!body.includes('=')) return null;
     const params = new URLSearchParams(body);
     const payload: PaddlePayload = {};
     params.forEach((value, key) => {
