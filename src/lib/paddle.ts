@@ -18,7 +18,7 @@ function ksort(obj: PaddlePayload) {
 }
 
 function parseBody(body: any): PaddlePayload | null {
-  if (isObject(body)) return body;
+  if (isObject(body) && !Array.isArray(body)) return body;
   if (typeof body !== 'string') return null;
 
   try {
