@@ -62,6 +62,10 @@ function normaliseContentType(contentType: string | string[] | undefined): strin
   return value?.split(';')[0].trim().toLowerCase() || '';
 }
 
+function normalizePaddleEventName(alertName: string): string {
+  return alertName.replace(/_/g, '.');
+}
+
 function parseBody(body: any): PaddlePayload | null {
   if (isObject(body) && !Array.isArray(body)) return body;
   if (typeof body !== 'string') return null;
@@ -79,10 +83,6 @@ function parseBody(body: any): PaddlePayload | null {
 
     return Object.keys(payload).length > 0 ? payload : null;
   }
-}
-
-function normalizePaddleEventName(alertName: string): string {
-  return alertName.replace(/_/g, '.');
 }
 
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
