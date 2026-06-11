@@ -45,17 +45,25 @@ function ksort(obj: { [k: string]: any }) {
   return sortedObj;
 }
 
-function toDate(value?: Date | string): Date | string | undefined {
-  return value;
+function toDate(value?: Date | string): Date | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value;
+  const normalized = typeof value === 'string' && value.includes(' ')
+    ? value.replace(' ', 'T') + 'Z'
+    : value;
+  const date = new Date(normalized);
+  return isNaN(date.getTime()) ? undefined : date;
 }
 
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req;
   private _pubKey: string;
+  private _parsedBody: any;
+  private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
     super(debugged);
-    if (!process.env.PADDLE_PUBLIC_KEY) throw "PADDLE_PUBLIC_KEY is required";
+    if (!process.env.PADDLE_PUBLIC_KEY) throw new Error("PADDLE_PUBLIC_KEY is required");
     this._req = req;
     this._pubKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY?.replace(/\\n/g, '\n')}\n-----END PUBLIC KEY-----`;
   }
@@ -205,19 +213,28 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   }
 
   parseEvent(): Promise<NormalizedSubscriptionEvent | null> {
-    if (!this.verify()) return Promise.resolve(null);
-    return Promise.resolve(this.toNormalizedEvent());
+    if (this._parsedEventPromise) {
+      return this._parsedEventPromise;
+    }
+    const result = this.verify() ? this.toNormalizedEvent() : null;
+    this._parsedEventPromise = Promise.resolve(result);
+    return this._parsedEventPromise;
   }
 
   private parseBody(): any {
+    if (this._parsedBody !== undefined) {
+      return this._parsedBody;
+    }
     try {
-      if (typeof this._req.body == 'string') {
-        this._req.body = JSON.parse(this._req.body);
+      if (typeof this._req.body === 'string') {
+        this._parsedBody = JSON.parse(this._req.body);
+      } else {
+        this._parsedBody = this._req.body;
       }
-      return this._req.body;
     } catch (error) {
       this.debug(error);
-      return null;
+      this._parsedBody = null;
     }
+    return this._parsedBody;
   }
 }
