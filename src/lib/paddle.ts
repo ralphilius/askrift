@@ -23,6 +23,7 @@ import {
   SUBSCRIPTION_EVENT_TYPES,
   SubscriptionEventType,
   createProviderStatusMetadata,
+  NormalizedEvent,
 } from "../types/events";
 import { fromRaw } from "./request";
 import type { InternalRequest } from "./request";
@@ -125,13 +126,15 @@ function parseBody(body: any): PaddlePayload | null {
   }
 }
 
-function normalizePaddlePayload<T extends PaddlePayload>(payload: T): T {
-  return Object.assign(payload, createProviderStatusMetadata("paddle", {
+function normalizePaddlePayload<T extends PaddlePayload>(payload: T): T & NormalizedEvent {
+  const metadata = createProviderStatusMetadata("paddle", {
     subscriptionStatus: typeof payload.status === "string" ? payload.status : undefined,
     previousSubscriptionStatus: typeof payload.old_status === "string" ? payload.old_status : undefined,
     paymentStatus: typeof payload.alert_name === "string" ? payload.alert_name : undefined,
     eventName: typeof payload.alert_name === "string" ? payload.alert_name : undefined,
-  }));
+    refundType: typeof payload.refund_type === "string" ? payload.refund_type : undefined,
+  });
+  return { ...payload, ...metadata };
 }
 
 function getRawBody(req: InternalRequest): string | null {

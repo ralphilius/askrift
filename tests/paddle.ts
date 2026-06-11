@@ -7,6 +7,7 @@ import { verifyPaddleSignature } from '../src/lib/paddle';
 import {
   PaymentStatus,
   SubscriptionStatus,
+  createProviderStatusMetadata,
   mapProviderPaymentStatus,
   mapProviderSubscriptionStatus,
 } from '../src/types/events';
@@ -1109,5 +1110,34 @@ describe('normalized provider statuses', function () {
     assert.equal(event?.provider?.raw.paymentStatus, 'subscription_payment_succeeded');
     assert.equal(event?.status, Status.Active);
     assert.equal(event?.alert_name, 'subscription_payment_succeeded');
+  });
+
+  it('should map paddle partial refunds to PartiallyRefunded', () => {
+    assert.equal(
+      mapProviderPaymentStatus('paddle', 'subscription_payment_refunded', 'partial'),
+      PaymentStatus.PartiallyRefunded,
+    );
+  });
+
+  it('should not assign payment status to paddle subscription events', () => {
+    const created = createProviderStatusMetadata('paddle', {
+      alert_name: 'subscription_created',
+      eventName: 'subscription_created',
+      status: 'active',
+    } as any);
+    const updated = createProviderStatusMetadata('paddle', {
+      alert_name: 'subscription_updated',
+      eventName: 'subscription_updated',
+      status: 'active',
+    } as any);
+    const cancelled = createProviderStatusMetadata('paddle', {
+      alert_name: 'subscription_cancelled',
+      eventName: 'subscription_cancelled',
+      status: 'deleted',
+    } as any);
+
+    assert.equal((created as any).paymentStatus, undefined);
+    assert.equal((updated as any).paymentStatus, undefined);
+    assert.equal((cancelled as any).paymentStatus, undefined);
   });
 });

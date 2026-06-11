@@ -113,6 +113,7 @@ export interface ProviderStatusFields {
   previousSubscriptionStatus?: string;
   paymentStatus?: string;
   eventName?: string;
+  refundType?: string;
 }
 
 export interface ProviderStatusMetadata {
@@ -153,6 +154,7 @@ export function mapProviderSubscriptionStatus(
 export function mapProviderPaymentStatus(
   provider: PaymentProvider,
   status: string | null | undefined,
+  refundType?: string,
 ): PaymentStatus | undefined {
   if (!status) return undefined;
 
@@ -160,7 +162,7 @@ export function mapProviderPaymentStatus(
 
   switch (provider) {
     case "paddle":
-      return mapPaddlePaymentStatus(normalizedStatus);
+      return mapPaddlePaymentStatus(normalizedStatus, refundType);
     case "stripe":
       return mapStripePaymentStatus(normalizedStatus);
     case "gumroad":
@@ -235,7 +237,7 @@ function mapGumroadSubscriptionStatus(status: string): SubscriptionStatus {
   }
 }
 
-function mapPaddlePaymentStatus(status: string): PaymentStatus {
+function mapPaddlePaymentStatus(status: string, refundType?: string): PaymentStatus {
   switch (status) {
     case "subscription_payment_succeeded":
     case "payment_succeeded":
@@ -249,6 +251,9 @@ function mapPaddlePaymentStatus(status: string): PaymentStatus {
     case "subscription_payment_refunded":
     case "payment_refunded":
     case "refunded":
+      if (refundType === "partial") {
+        return PaymentStatus.PartiallyRefunded;
+      }
       return PaymentStatus.Refunded;
     case "pending":
       return PaymentStatus.Pending;
@@ -315,23 +320,31 @@ function mapGumroadPaymentStatus(status: string): PaymentStatus {
   }
 }
 
+function isKnownStatus<T>(value: T | undefined, unknownValue: T): value is T {
+  return value !== undefined && value !== unknownValue;
+}
+
 export function createProviderStatusMetadata(
   provider: PaymentProvider,
   raw: ProviderStatusFields,
 ): NormalizedEvent {
   const subscriptionStatus = mapProviderSubscriptionStatus(provider, raw.subscriptionStatus);
   const previousSubscriptionStatus = mapProviderSubscriptionStatus(provider, raw.previousSubscriptionStatus);
-  const paymentStatus = mapProviderPaymentStatus(provider, raw.paymentStatus);
+  const paymentStatus = mapProviderPaymentStatus(provider, raw.paymentStatus, raw.refundType);
+
+  const includeSubscriptionStatus = isKnownStatus(subscriptionStatus, SubscriptionStatus.Unknown);
+  const includePreviousSubscriptionStatus = isKnownStatus(previousSubscriptionStatus, SubscriptionStatus.Unknown);
+  const includePaymentStatus = isKnownStatus(paymentStatus, PaymentStatus.Unknown);
 
   return {
-    ...(subscriptionStatus ? { subscriptionStatus } : {}),
-    ...(previousSubscriptionStatus ? { previousSubscriptionStatus } : {}),
-    ...(paymentStatus ? { paymentStatus } : {}),
+    ...(includeSubscriptionStatus ? { subscriptionStatus } : {}),
+    ...(includePreviousSubscriptionStatus ? { previousSubscriptionStatus } : {}),
+    ...(includePaymentStatus ? { paymentStatus } : {}),
     provider: {
       name: provider,
-      ...(subscriptionStatus ? { subscriptionStatus } : {}),
-      ...(previousSubscriptionStatus ? { previousSubscriptionStatus } : {}),
-      ...(paymentStatus ? { paymentStatus } : {}),
+      ...(includeSubscriptionStatus ? { subscriptionStatus } : {}),
+      ...(includePreviousSubscriptionStatus ? { previousSubscriptionStatus } : {}),
+      ...(includePaymentStatus ? { paymentStatus } : {}),
       raw,
     },
   };
