@@ -1,13 +1,15 @@
-import { VercelRequest } from "@vercel/node";
-import { Request } from 'express';
 import Askrift, { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent } from "./lib/askrift";
 import Paddle, { PaddleOptions } from "./lib/paddle";
+import { fromExpress, fromRaw, fromVercel } from "./lib/request";
+import type { InternalRequest, RequestHeaders } from "./lib/request";
 
 export default Askrift;
 export { Paddle };
 export { verifyPaddleSignature } from "./lib/paddle";
+export { fromExpress, fromRaw, fromVercel };
 export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
 export * from "./types/events";
+export type { InternalRequest, RequestHeaders } from "./lib/request";
 export type { PaddleOptions, PaddleSubscriptionEvents } from "./lib/paddle";
 
 export type TypesMap = {
@@ -16,8 +18,8 @@ export type TypesMap = {
 
 export type InitializeOptions = PaddleOptions;
 
-type ProviderRequest = VercelRequest | Request;
-type ProviderConstructor<T extends keyof TypesMap> = new (request: ProviderRequest, options?: PaddleOptions | boolean) => TypesMap[T];
+type ProviderRequest = InternalRequest;
+type ProviderConstructor<T extends keyof TypesMap> = new (request: InternalRequest, options?: PaddleOptions | boolean) => TypesMap[T];
 
 const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,

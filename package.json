@@ -11,13 +11,11 @@
     "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' mocha -r ts-node/register 'tests/**/*.ts' --exit"
   },
   "dependencies": {
-    "@vercel/node": "^1.12.1",
     "crypto": "^1.0.1",
     "php-serialize": "^4.0.2"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",
-    "@types/express": "^4.17.13",
     "@types/mocha": "^9.0.0",
     "@types/node": "^16.9.1",
     "chai": "^4.3.4",

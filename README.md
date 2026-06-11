@@ -8,6 +8,19 @@ npm install @ralphilius/askrift # or yarn add @ralphilius/askrift
 
 ## Use on your server
 
+Áskrift provider logic works with a small internal request shape instead of importing framework-specific request types:
+
+```ts
+type InternalRequest = {
+  method: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: unknown;
+  rawBody?: Buffer | string;
+}
+```
+
+Use an adapter helper to convert the request from your framework before calling `initialize`.
+
 Áskrift can still be used with the provider-specific helpers (`validRequest()`,
 `validPayload()`, `onSubscriptionCreated()`, and friends), but new integrations
 can use the webhook dispatcher API:
@@ -38,18 +51,18 @@ Event handlers receive the parsed payload and a context object that includes the
 normalized event name, the provider-specific event name, and the matched handler
 name. Paddle webhooks support normalized event names such as
 `subscription.created` and provider-specific names such as
-`paddle.subscription_created`.
+`paddle.subscription_payment_succeeded`.
 
 ### Express example
 
 ```ts
 import express from 'express';
-import { initialize } from '@ralphilius/askrift';
+import { initialize, fromExpress } from '@ralphilius/askrift';
 
 const app = express();
 
 app.post('/webhooks/paddle', express.urlencoded({ extended: false }), async (req, res) => {
-  const askrift = initialize('paddle', req);
+  const askrift = initialize('paddle', fromExpress(req));
 
   askrift.on('subscription.created', async (payload, event) => {
     console.log('New subscription:', payload.subscription_id);
@@ -73,10 +86,10 @@ app.post('/webhooks/paddle', express.urlencoded({ extended: false }), async (req
 
 ```ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { initialize } from '@ralphilius/askrift';
+import { initialize, fromVercel } from '@ralphilius/askrift';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const askrift = initialize('paddle', req);
+  const askrift = initialize('paddle', fromVercel(req));
 
   askrift.on('subscription.created', async (payload) => {
     console.log('New subscription:', payload.subscription_id);
@@ -98,10 +111,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 Pass Paddle configuration directly to `initialize()` with an options object. `publicKey` can be either a full PEM public key or the body of the key without `-----BEGIN PUBLIC KEY-----` / `-----END PUBLIC KEY-----` headers.
 
 ```js
-import { initialize } from '@ralphilius/askrift'
+import { initialize, fromVercel } from '@ralphilius/askrift'
 
 module.exports = (req, res) => {
-  const askrift = initialize('paddle', req, {
+  const askrift = initialize('paddle', fromVercel(req), {
     publicKey: process.env.PADDLE_PUBLIC_KEY,
     debug: process.env.NODE_ENV !== 'production',
   });
@@ -126,10 +139,10 @@ module.exports = (req, res) => {
 For backward compatibility, Áskrift will still read `process.env.PADDLE_PUBLIC_KEY` when you do not pass `publicKey` in the options object.
 
 ```js
-import { initialize } from '@ralphilius/askrift'
+import { initialize, fromVercel } from '@ralphilius/askrift'
 
 module.exports = (req, res) => {
-  const askrift = initialize('paddle', req);
+  const askrift = initialize('paddle', fromVercel(req));
 
   if(askrift.validRequest()){
     if(askrift.validPayload()){
@@ -147,13 +160,33 @@ module.exports = (req, res) => {
 }
 ```
 
+### Raw/internal request objects
+
+If your framework is not covered by a dedicated helper, use `fromRaw` with the same minimal fields:
+
+```ts
+import { initialize, fromRaw } from '@ralphilius/askrift'
+
+const request = fromRaw({
+  method: 'POST',
+  headers: {
+    'content-type': 'application/x-www-form-urlencoded',
+  },
+  body: webhookBody,
+})
+
+const askrift = initialize('paddle', request)
+```
+
+The built-in adapters normalize header names to lowercase and pass through `body` and optional `rawBody` values.
+
 ### Legacy provider-specific helper example
 
 ```js
-import { initialize } from '@ralphilius/askrift';
+import { initialize, fromVercel } from '@ralphilius/askrift';
 
 module.exports = (req, res) => {
-  const askrift = initialize('paddle', req);
+  const askrift = initialize('paddle', fromVercel(req));
 
   if (askrift.validRequest()) {
     if (askrift.validPayload()) {
