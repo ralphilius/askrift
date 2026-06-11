@@ -1,10 +1,11 @@
 import { VercelRequest } from "@vercel/node";
 import { Request } from 'express';
-import Askrift from "./lib/askrift";
+import Askrift, { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent } from "./lib/askrift";
 import Paddle from "./lib/paddle";
 
 export default Askrift;
 export { Paddle };
+export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
 export * from "./types/events";
 export type { PaddleSubscriptionEvents } from "./lib/paddle";
 
