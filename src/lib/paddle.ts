@@ -18,6 +18,8 @@ import {
 } from "../types/events";
 import { isObject } from "./utils";
 
+type PaddlePayload = { [k: string]: any };
+
 export type PaddleSubscriptionEvents = {
   [SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated]: SubscriptionCreated;
   [SUBSCRIPTION_EVENT_TYPES.SubscriptionUpdated]: SubscriptionUpdated;
@@ -36,9 +38,9 @@ const PADDLE_EVENT_TYPES: Record<string, SubscriptionEventType> = {
   subscription_payment_refunded: SUBSCRIPTION_EVENT_TYPES.PaymentRefunded,
 };
 
-function ksort(obj: { [k: string]: any }) {
+function ksort(obj: PaddlePayload) {
   const keys = Object.keys(obj).sort();
-  let sortedObj: { [k: string]: any } = {};
+  let sortedObj: PaddlePayload = {};
   for (let i in keys) {
     sortedObj[keys[i]] = obj[keys[i]];
   }
@@ -55,10 +57,34 @@ function toDate(value?: Date | string): Date | undefined {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
+function normaliseContentType(contentType: string | string[] | undefined): string {
+  const value = Array.isArray(contentType) ? contentType[0] : contentType;
+  return value?.split(';')[0].trim().toLowerCase() || '';
+}
+
+function parseBody(body: any): PaddlePayload | null {
+  if (isObject(body) && !Array.isArray(body)) return body;
+  if (typeof body !== 'string') return null;
+
+  try {
+    const parsed = JSON.parse(body);
+    return isObject(parsed) ? parsed : null;
+  } catch (error) {
+    if (!body.includes('=')) return null;
+    const params = new URLSearchParams(body);
+    const payload: PaddlePayload = {};
+    params.forEach((value, key) => {
+      payload[key] = value;
+    });
+
+    return Object.keys(payload).length > 0 ? payload : null;
+  }
+}
+
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req;
   private _pubKey: string;
-  private _parsedBody: any;
+  private _parsedBody: PaddlePayload | null = null;
   private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
@@ -93,19 +119,18 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   }
 
   validRequest(): boolean {
-    return this._req.method == 'POST' && this._req.headers['content-type'] == 'application/x-www-form-urlencoded';
+    return this._req.method == 'POST' && normaliseContentType(this._req.headers['content-type']) == 'application/x-www-form-urlencoded';
   }
 
   verify(): boolean {
-    const body = this.parseBody();
-    this.debug(body);
-    if (!isObject(body) || typeof body.p_signature !== 'string') return false;
+    this.debug(this._req.body);
+    const body = parseBody(this._req.body);
+    if (!body || typeof body.p_signature !== 'string') return false;
+    this._parsedBody = body;
 
     this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
-    let jsonObj = { ...body };
-    const mySig = Buffer.from(jsonObj.p_signature, 'base64');
-    delete jsonObj.p_signature;
-    jsonObj = ksort(jsonObj);
+    const { p_signature, ...unsignedPayload } = body;
+    let jsonObj = ksort(unsignedPayload);
     for (let property in jsonObj) {
       if (jsonObj.hasOwnProperty(property) && (typeof jsonObj[property]) !== "string") {
         if (Array.isArray(jsonObj[property])) {
@@ -122,6 +147,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       verifier.update(serialized);
       verifier.end();
 
+      const mySig = Buffer.from(p_signature, 'base64');
       return verifier.verify(this._pubKey, mySig);
     } catch (error) {
       this.debug(error);
@@ -130,14 +156,14 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   }
 
   getEventType(): SubscriptionEventType | null {
-    const body = this.parseBody();
-    if (!isObject(body) || typeof body.alert_name !== 'string') return null;
+    const body = this._parsedBody;
+    if (!body || typeof body.alert_name !== 'string') return null;
     return PADDLE_EVENT_TYPES[body.alert_name] || null;
   }
 
   toNormalizedEvent(): NormalizedSubscriptionEvent | null {
-    const body = this.parseBody();
-    if (!isObject(body)) return null;
+    const body = this._parsedBody;
+    if (!body) return null;
 
     const type = this.getEventType();
     if (!type) return null;
@@ -219,22 +245,5 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     const result = this.verify() ? this.toNormalizedEvent() : null;
     this._parsedEventPromise = Promise.resolve(result);
     return this._parsedEventPromise;
-  }
-
-  private parseBody(): any {
-    if (this._parsedBody !== undefined) {
-      return this._parsedBody;
-    }
-    try {
-      if (typeof this._req.body === 'string') {
-        this._parsedBody = JSON.parse(this._req.body);
-      } else {
-        this._parsedBody = this._req.body;
-      }
-    } catch (error) {
-      this.debug(error);
-      this._parsedBody = null;
-    }
-    return this._parsedBody;
   }
 }

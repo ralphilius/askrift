@@ -12,11 +12,36 @@ export type TypesMap = {
   paddle: Paddle;
 };
 
-export function initialize<T extends keyof TypesMap>(type: T, body: VercelRequest | Request, debug?: boolean): TypesMap[T] {
-  switch (type) {
-    case 'paddle':
-      return new Paddle(body, debug) as TypesMap[T];
-    default:
-      throw new Error(`Unsupported provider: ${type}`);
+export type InitializeOptions = {
+  debug?: boolean;
+};
+
+type ProviderRequest = VercelRequest | Request;
+type ProviderConstructor = new (request: ProviderRequest, debug?: boolean) => Askrift<any>;
+
+const providers: Record<string, ProviderConstructor> = {
+  paddle: Paddle,
+};
+
+export class UnsupportedProviderError extends Error {
+  constructor(provider: string) {
+    super(`Unsupported provider: ${provider}`);
+    this.name = 'UnsupportedProviderError';
+    Object.setPrototypeOf(this, UnsupportedProviderError.prototype);
   }
+}
+
+function resolveDebugOption(options?: InitializeOptions | boolean): boolean | undefined {
+  if (typeof options === 'boolean') return options;
+  return options?.debug;
+}
+
+export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): TypesMap[T];
+export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<any> {
+  if (!Object.prototype.hasOwnProperty.call(providers, type)) {
+    throw new UnsupportedProviderError(type);
+  }
+
+  const Provider = providers[type];
+  return new Provider(request, resolveDebugOption(options));
 };
