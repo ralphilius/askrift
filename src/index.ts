@@ -1,19 +1,22 @@
 import Askrift, { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent } from "./lib/askrift";
 import Paddle, { PaddleOptions, PaddleProviderKind } from "./lib/paddle";
+import Stripe from "./lib/stripe";
 import { fromExpress, fromRaw, fromVercel } from "./lib/request";
 import type { InternalRequest, RequestHeaders } from "./lib/request";
 
 export default Askrift;
-export { Paddle };
+export { Paddle, Stripe };
 export { verifyPaddleSignature } from "./lib/paddle";
 export { fromExpress, fromRaw, fromVercel };
 export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
 export * from "./types/events";
+export * from "./types/stripe";
 export type { InternalRequest, RequestHeaders } from "./lib/request";
 export type { PaddleOptions, PaddleProviderKind, PaddleSubscriptionEvents } from "./lib/paddle";
 
 export type TypesMap = {
   paddle: Paddle;
+  stripe: Stripe;
   'paddle-classic': Paddle;
   'paddle-billing': Paddle;
 };
@@ -27,6 +30,7 @@ const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,
   'paddle-classic': Paddle,
   'paddle-billing': Paddle,
+  stripe: Stripe,
 };
 
 export class UnsupportedProviderError extends Error {
