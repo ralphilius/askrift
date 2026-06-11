@@ -5,12 +5,19 @@ export type WebhookProvider = 'paddle';
 export type EventTimestampValidationOptions = {
   /** Maximum accepted event age in milliseconds. */
   maxAgeMs: number;
+  /**
+   * Allowed clock skew in milliseconds, applied to both directions.
+   * Permits a small tolerance for events arriving slightly in the future
+   * (or stale events whose timestamps trail the receiver clock).
+   * Defaults to 5 minutes.
+   */
+  toleranceMs?: number;
   /** Time to compare against. Defaults to the current time. */
   now?: Date | number;
 };
 
 export interface NormalizedWebhookEvent {
-  getIdempotencyKey(): string;
+  getIdempotencyKey(): string | null;
   getEventTimestamp(): Date | null;
   isFresh(options: EventTimestampValidationOptions): boolean;
 }
@@ -85,35 +92,37 @@ export function isEventFresh(
   const timestamp = extractEventTimestamp(provider, payload);
   if (!timestamp) return false;
 
+  const toleranceMs = options.toleranceMs ?? 5 * 60 * 1000;
   const ageMs = coerceNow(options.now) - timestamp.getTime();
-  return ageMs >= 0 && ageMs <= options.maxAgeMs;
+  return ageMs >= -toleranceMs && ageMs <= options.maxAgeMs + toleranceMs;
 }
 
 export function normalizeWebhookEvent<T extends Record<string, any>>(
   provider: WebhookProvider,
   payload: T,
 ): T & NormalizedWebhookEvent {
-  Object.defineProperties(payload, {
+  const target: Record<string, any> = Object.isExtensible(payload) ? payload : { ...payload };
+
+  Object.defineProperties(target, {
     getIdempotencyKey: {
       configurable: true,
       enumerable: false,
       value: () => {
-        const eventId = extractStableEventId(provider, payload);
-        if (!eventId) throw new Error(`Unable to extract a stable ${provider} event ID`);
-        return `${provider}:${eventId}`;
+        const eventId = extractStableEventId(provider, target);
+        return eventId ? `${provider}:${eventId}` : null;
       },
     },
     getEventTimestamp: {
       configurable: true,
       enumerable: false,
-      value: () => extractEventTimestamp(provider, payload),
+      value: () => extractEventTimestamp(provider, target),
     },
     isFresh: {
       configurable: true,
       enumerable: false,
-      value: (options: EventTimestampValidationOptions) => isEventFresh(provider, payload, options),
+      value: (options: EventTimestampValidationOptions) => isEventFresh(provider, target, options),
     },
   });
 
-  return payload as T & NormalizedWebhookEvent;
+  return target as T & NormalizedWebhookEvent;
 }
