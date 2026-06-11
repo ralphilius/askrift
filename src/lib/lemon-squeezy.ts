@@ -27,7 +27,7 @@ function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
     provider: 'lemon-squeezy' as const,
     type,
     id: payload.data?.id,
-    subscriptionId: attributes.subscription_id == null ? payload.data?.id || null : String(attributes.subscription_id),
+    subscriptionId: attributes.subscription_id != null ? String(attributes.subscription_id) : (payload.data?.type === 'subscriptions' ? payload.data?.id || null : null),
     customerId: attributes.customer_id == null ? null : String(attributes.customer_id),
     customerEmail: attributes.customer_email || null,
     productId: attributes.product_id == null ? null : String(attributes.product_id),
@@ -55,7 +55,7 @@ export default class LemonSqueezy extends Askrift<'lemon-squeezy'> {
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
     super(debugged);
-    if (!process.env.LEMON_SQUEEZY_WEBHOOK_SECRET) throw 'LEMON_SQUEEZY_WEBHOOK_SECRET is required';
+    if (!process.env.LEMON_SQUEEZY_WEBHOOK_SECRET) throw new Error('LEMON_SQUEEZY_WEBHOOK_SECRET is required');
     this._req = req;
     this._secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
   }

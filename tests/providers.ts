@@ -96,7 +96,7 @@ describe('provider lifecycle fixtures', function () {
 
   it('maps and verifies Polar subscription/payment lifecycle events', async () => {
     const id = 'msg_123';
-    const timestamp = '1767225600';
+    const timestamp = String(Math.floor(Date.now() / 1000));
     const base = {
       type: 'subscription.created',
       data: {
