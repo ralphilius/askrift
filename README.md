@@ -441,19 +441,32 @@ Next.js route handlers expose a Web `Request`, while Áskrift expects an Express
 
 ```ts
 import { initialize } from '@ralphilius/askrift';
-import type { Request as ExpressRequest } from 'express';
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const body = Object.fromEntries(formData.entries());
+  const contentType = request.headers.get('content-type') || '';
+
+  if (
+    contentType !== 'application/x-www-form-urlencoded' &&
+    !contentType.startsWith('multipart/form-data')
+  ) {
+    return new Response('Unsupported Media Type', { status: 415 });
+  }
+
+  let body: Record<string, string>;
+  try {
+    const formData = await request.formData();
+    body = Object.fromEntries(formData.entries()) as Record<string, string>;
+  } catch {
+    return new Response('Invalid webhook payload', { status: 400 });
+  }
 
   const req = {
     method: 'POST',
     headers: {
-      'content-type': request.headers.get('content-type') || '',
+      'content-type': contentType,
     },
     body,
-  } as unknown as ExpressRequest;
+  };
 
   const askrift = initialize('paddle', req);
 
