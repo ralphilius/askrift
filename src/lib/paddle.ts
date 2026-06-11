@@ -252,8 +252,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       return this._parsedEventPromise;
     }
     if (!parseBody(this._req.body)) {
-      const reason = new Error("Invalid body");
-      this._parsedEventPromise = Promise.reject(reason);
+      this._parsedEventPromise = Promise.resolve(null);
       return this._parsedEventPromise;
     }
     const result = this.verify() ? this.toNormalizedEvent() : null;
