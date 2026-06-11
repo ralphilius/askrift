@@ -1,7 +1,7 @@
 import { VercelRequest } from "@vercel/node";
 import { Request } from 'express';
 import Askrift, { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent } from "./lib/askrift";
-import Paddle from "./lib/paddle";
+import Paddle, { PaddleOptions } from "./lib/paddle";
 
 export default Askrift;
 export { Paddle };
@@ -14,12 +14,10 @@ export type TypesMap = {
   paddle: Paddle;
 };
 
-export type InitializeOptions = {
-  debug?: boolean;
-};
+export type InitializeOptions = PaddleOptions;
 
 type ProviderRequest = VercelRequest | Request;
-type ProviderConstructor = new (request: ProviderRequest, debug?: boolean) => Askrift<any>;
+type ProviderConstructor = new (request: ProviderRequest, options?: InitializeOptions | boolean) => Askrift<any>;
 
 const providers: Record<string, ProviderConstructor> = {
   paddle: Paddle,
@@ -33,11 +31,6 @@ export class UnsupportedProviderError extends Error {
   }
 }
 
-function resolveDebugOption(options?: InitializeOptions | boolean): boolean | undefined {
-  if (typeof options === 'boolean') return options;
-  return options?.debug;
-}
-
 export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): TypesMap[T];
 export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<any> {
   if (!Object.prototype.hasOwnProperty.call(providers, type)) {
@@ -45,5 +38,5 @@ export function initialize(type: string, request: ProviderRequest, options?: Ini
   }
 
   const Provider = providers[type];
-  return new Provider(request, resolveDebugOption(options));
+  return new Provider(request, options);
 };

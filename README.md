@@ -94,6 +94,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 ```
 
+### Explicit configuration
+Pass Paddle configuration directly to `initialize()` with an options object. `publicKey` can be either a full PEM public key or the body of the key without `-----BEGIN PUBLIC KEY-----` / `-----END PUBLIC KEY-----` headers.
+
+```js
+import { initialize } from '@ralphilius/askrift'
+
+module.exports = (req, res) => {
+  const askrift = initialize('paddle', req, {
+    publicKey: process.env.PADDLE_PUBLIC_KEY,
+    debug: process.env.NODE_ENV !== 'production',
+  });
+
+  if(askrift.validRequest()){
+    if(askrift.validPayload()){
+      askrift.onSubscriptionCreated().then(subscription => {
+        // Handle subscription_created event
+      })
+    // Handle other events
+    } else {
+      // Invalid body, possibly leak of webhooks URL?
+      res.status(403).end();
+    }
+  } else {
+    res.status(400).end();
+  }
+}
+```
+
+### Environment variable fallback
+For backward compatibility, Áskrift will still read `process.env.PADDLE_PUBLIC_KEY` when you do not pass `publicKey` in the options object.
+
+```js
+import { initialize } from '@ralphilius/askrift'
+
+module.exports = (req, res) => {
+  const askrift = initialize('paddle', req);
+
+  if(askrift.validRequest()){
+    if(askrift.validPayload()){
+      askrift.onSubscriptionCreated().then(subscription => {
+        // Handle subscription_created event
+      })
+    // Handle other events
+    } else {
+      // Invalid body, possibly leak of webhooks URL?
+      res.status(403).end();
+    }
+  } else {
+    res.status(400).end();
+  }
+}
+```
+
 ### Legacy provider-specific helper example
 
 ```js
