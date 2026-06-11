@@ -2,8 +2,6 @@ import Askrift, { initialize, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
-import * as crypto from "crypto";
-import { serialize } from 'php-serialize';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -39,8 +37,8 @@ function ksort(obj: { [k: string]: any }) {
 
 function signedPayload(fields: { [k: string]: any }) {
   const jsonObj = ksort({ ...fields });
-  for (let property in jsonObj) {
-    if (jsonObj.hasOwnProperty(property) && (typeof jsonObj[property]) !== "string") {
+  for (const property of Object.keys(jsonObj)) {
+    if ((typeof jsonObj[property]) !== "string") {
       if (Array.isArray(jsonObj[property])) {
         jsonObj[property] = jsonObj[property].toString();
       } else {
@@ -67,13 +65,26 @@ function createReq(method: string, body = signedPayload(payload)): any {
   };
 }
 
+const validPayload = JSON.parse(signedPayload(payload));
+
+const urlEncodedReq = {
+  ...baseReq,
+  method: 'POST',
+  headers: {
+    'content-type': 'application/x-www-form-urlencoded; charset=utf-8'
+  },
+  body: new URLSearchParams(validPayload).toString(),
+};
+
 describe('library works with paddle', function () {
   let askriftPd: Askrift<'paddle'>;
   let askriftBadPd: Askrift<'paddle'>;
+  let askriftUrlEncodedPd: Askrift<'paddle'>;
 
   it('should initalize successfully', (done) => {
     askriftPd = initialize('paddle', createReq('POST'));
     askriftBadPd = initialize('paddle', createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' })));
+    askriftUrlEncodedPd = initialize('paddle', urlEncodedReq);
     done();
   });
 
