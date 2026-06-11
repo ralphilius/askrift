@@ -5,7 +5,7 @@
   "notification_id": "ntf_subscription_past_due",
   "data": {
     "id": "sub_fixture",
-    "status": "active",
+    "status": "past_due",
     "customer_id": "ctm_fixture",
     "currency_code": "USD"
   }

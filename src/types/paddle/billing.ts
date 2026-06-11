@@ -25,7 +25,12 @@ export type PaddleBillingTransactionEventType =
   | "transaction.revised"
   | "transaction.updated";
 
-export type PaddleBillingEventType = PaddleBillingSubscriptionEventType | PaddleBillingTransactionEventType;
+export type PaddleBillingOtherEventType = string;
+
+export type PaddleBillingEventType =
+  | PaddleBillingSubscriptionEventType
+  | PaddleBillingTransactionEventType
+  | PaddleBillingOtherEventType;
 
 export interface PaddleBillingEventBase<TType extends PaddleBillingEventType = PaddleBillingEventType, TData = Record<string, unknown>> {
   event_id: string;
@@ -75,4 +80,7 @@ export type PaddleBillingSubscriptionEvent<TType extends PaddleBillingSubscripti
 export type PaddleBillingTransactionEvent<TType extends PaddleBillingTransactionEventType = PaddleBillingTransactionEventType> =
   PaddleBillingEventBase<TType, PaddleBillingTransactionData>;
 
-export type PaddleBillingEvent = PaddleBillingSubscriptionEvent | PaddleBillingTransactionEvent;
+export type PaddleBillingOtherEvent<TType extends PaddleBillingOtherEventType = PaddleBillingOtherEventType> =
+  PaddleBillingEventBase<TType, Record<string, unknown>>;
+
+export type PaddleBillingEvent = PaddleBillingSubscriptionEvent | PaddleBillingTransactionEvent | PaddleBillingOtherEvent;
