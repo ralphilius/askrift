@@ -31,8 +31,8 @@ const payload = {
 function ksort(obj: { [k: string]: any }) {
   const keys = Object.keys(obj).sort();
   let sortedObj: { [k: string]: any } = {};
-  for (let i in keys) {
-    sortedObj[keys[i]] = obj[keys[i]];
+  for (const key of keys) {
+    sortedObj[key] = obj[key];
   }
   return sortedObj;
 }
