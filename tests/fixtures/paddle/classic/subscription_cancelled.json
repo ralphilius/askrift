@@ -1,0 +1,11 @@
+{
+  "alert_id": "1005",
+  "alert_name": "subscription_cancelled",
+  "cancellation_effective_date": "2026-02-01",
+  "currency": "USD",
+  "email": "subscriber@example.com",
+  "event_time": "2026-01-01 00:00:04",
+  "status": "deleted",
+  "subscription_id": "5001",
+  "subscription_plan_id": "6002"
+}

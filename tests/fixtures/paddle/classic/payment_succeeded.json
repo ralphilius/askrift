@@ -1,0 +1,12 @@
+{
+  "alert_id": "1001",
+  "alert_name": "payment_succeeded",
+  "checkout_id": "chk_001",
+  "currency": "USD",
+  "email": "buyer@example.com",
+  "event_time": "2026-01-01 00:00:00",
+  "order_id": "2001",
+  "product_id": "3001",
+  "product_name": "One-time product",
+  "sale_gross": "25.00"
+}

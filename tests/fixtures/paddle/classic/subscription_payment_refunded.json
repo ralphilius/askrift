@@ -1,0 +1,13 @@
+{
+  "alert_id": "1008",
+  "alert_name": "subscription_payment_refunded",
+  "amount": "30.00",
+  "currency": "USD",
+  "email": "subscriber@example.com",
+  "event_time": "2026-01-01 00:00:07",
+  "gross_refund": "30.00",
+  "refund_type": "full",
+  "subscription_id": "5001",
+  "subscription_payment_id": "7001",
+  "subscription_plan_id": "6002"
+}

@@ -1,0 +1,12 @@
+{
+  "alert_id": "1004",
+  "alert_name": "subscription_updated",
+  "currency": "USD",
+  "email": "subscriber@example.com",
+  "event_time": "2026-01-01 00:00:03",
+  "new_price": "30.00",
+  "old_price": "20.00",
+  "status": "active",
+  "subscription_id": "5001",
+  "subscription_plan_id": "6002"
+}

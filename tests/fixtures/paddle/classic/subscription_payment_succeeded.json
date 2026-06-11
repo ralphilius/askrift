@@ -1,0 +1,15 @@
+{
+  "alert_id": "1006",
+  "alert_name": "subscription_payment_succeeded",
+  "balance_currency": "USD",
+  "currency": "USD",
+  "email": "subscriber@example.com",
+  "event_time": "2026-01-01 00:00:05",
+  "initial_payment": "0",
+  "order_id": "2002",
+  "sale_gross": "30.00",
+  "status": "active",
+  "subscription_id": "5001",
+  "subscription_payment_id": "7001",
+  "subscription_plan_id": "6002"
+}

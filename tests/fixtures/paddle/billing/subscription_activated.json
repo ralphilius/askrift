@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_subscription_activated",
+  "event_type": "subscription.activated",
+  "occurred_at": "2026-01-01T00:00:00Z",
+  "notification_id": "ntf_subscription_activated",
+  "data": {
+    "id": "sub_fixture",
+    "status": "active",
+    "customer_id": "ctm_fixture",
+    "currency_code": "USD"
+  }
+}

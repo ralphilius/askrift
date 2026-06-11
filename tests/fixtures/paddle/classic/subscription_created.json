@@ -1,0 +1,14 @@
+{
+  "alert_id": "1003",
+  "alert_name": "subscription_created",
+  "cancel_url": "https://example.com/cancel",
+  "checkout_id": "chk_sub_001",
+  "currency": "USD",
+  "email": "subscriber@example.com",
+  "event_time": "2026-01-01 00:00:02",
+  "next_bill_date": "2026-02-01",
+  "status": "active",
+  "subscription_id": "5001",
+  "subscription_plan_id": "6001",
+  "update_url": "https://example.com/update"
+}
