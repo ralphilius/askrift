@@ -1,10 +1,13 @@
 import Askrift, { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent } from "./lib/askrift";
 import Paddle, { PaddleOptions, PaddleProviderKind } from "./lib/paddle";
+import Gumroad from "./lib/gumroad";
+import LemonSqueezy from "./lib/lemon-squeezy";
+import Polar from "./lib/polar";
 import { fromExpress, fromRaw, fromVercel } from "./lib/request";
 import type { InternalRequest, RequestHeaders } from "./lib/request";
 
 export default Askrift;
-export { Paddle };
+export { Paddle, Gumroad, LemonSqueezy, Polar };
 export { verifyPaddleSignature } from "./lib/paddle";
 export { fromExpress, fromRaw, fromVercel };
 export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
@@ -16,6 +19,9 @@ export type TypesMap = {
   paddle: Paddle;
   'paddle-classic': Paddle;
   'paddle-billing': Paddle;
+  gumroad: Gumroad;
+  'lemon-squeezy': LemonSqueezy;
+  polar: Polar;
 };
 
 export type InitializeOptions = PaddleOptions;
@@ -27,6 +33,9 @@ const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,
   'paddle-classic': Paddle,
   'paddle-billing': Paddle,
+  gumroad: Gumroad,
+  'lemon-squeezy': LemonSqueezy,
+  polar: Polar,
 };
 
 export class UnsupportedProviderError extends Error {
