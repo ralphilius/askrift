@@ -38,6 +38,9 @@ export default abstract class Askrift<Events extends ProviderEventMap | string =
   abstract toNormalizedEvent(): NormalizedSubscriptionEvent | null;
 
   parseEvent(): Promise<NormalizedSubscriptionEvent | null> {
+    if (!this.verify()) {
+      return Promise.resolve(null);
+    }
     return Promise.resolve(this.toNormalizedEvent());
   }
 
