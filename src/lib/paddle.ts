@@ -125,8 +125,10 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   verify(): boolean {
     this.debug(this._req.body);
     const body = parseBody(this._req.body);
-    if (!body || typeof body.p_signature !== 'string') return false;
-    this._parsedBody = body;
+    if (!body || typeof body.p_signature !== 'string') {
+      this._parsedBody = null;
+      return false;
+    }
 
     this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
     const { p_signature, ...unsignedPayload } = body;
@@ -148,9 +150,16 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       verifier.end();
 
       const mySig = Buffer.from(p_signature, 'base64');
-      return verifier.verify(this._pubKey, mySig);
+      const verified = verifier.verify(this._pubKey, mySig);
+      if (verified) {
+        this._parsedBody = body;
+      } else {
+        this._parsedBody = null;
+      }
+      return verified;
     } catch (error) {
       this.debug(error);
+      this._parsedBody = null;
       return false;
     }
   }
@@ -240,6 +249,11 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
 
   parseEvent(): Promise<NormalizedSubscriptionEvent | null> {
     if (this._parsedEventPromise) {
+      return this._parsedEventPromise;
+    }
+    if (!parseBody(this._req.body)) {
+      const reason = new Error("Invalid body");
+      this._parsedEventPromise = Promise.reject(reason);
       return this._parsedEventPromise;
     }
     const result = this.verify() ? this.toNormalizedEvent() : null;
