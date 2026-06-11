@@ -30,80 +30,12 @@ module.exports = (req, res) => {
 
 ```
 
-### Stripe
-Set your Stripe webhook signing secret before initializing the handler:
-
-```bash
-STRIPE_WEBHOOK_SECRET=whsec_...
-```
-
-Stripe validates signatures against the raw JSON payload. In frameworks that parse JSON before
-calling your handler, keep the raw body available as `req.rawBody` or pass the unmodified JSON
-string as `req.body`.
-
-Example using a Vercel/NextJS serverless function:
-
-```js
-import { initialize } from '@ralphilius/askrift'
-
-module.exports = async (req, res) => {
-  const askrift = initialize("stripe", req);
-
-  if (!askrift.validRequest()) {
-    res.status(400).end();
-    return;
-  }
-
-  if (!askrift.validPayload()) {
-    res.status(403).end();
-    return;
-  }
-
-  const created = await askrift.onSubscriptionCreated();
-  if (created) {
-    // Handle customer.subscription.created
-  }
-
-  const updated = await askrift.onSubscriptionUpdated();
-  if (updated) {
-    // Handle customer.subscription.updated
-  }
-
-  const canceled = await askrift.onSubscriptionCanceled();
-  if (canceled) {
-    // Handle customer.subscription.deleted
-  }
-
-  const paymentSucceeded = await askrift.onPaymentSucceeded();
-  if (paymentSucceeded) {
-    // Handle invoice.payment_succeeded
-  }
-
-  const paymentFailed = await askrift.onPaymentFailed();
-  if (paymentFailed) {
-    // Handle invoice.payment_failed
-  }
-
-  res.status(200).end();
-}
-```
-
-You can also access Stripe-specific helpers by importing `Stripe` and casting the initialized
-handler when you need a normalized event payload:
-
-```js
-import { initialize, Stripe } from '@ralphilius/askrift'
-
-const askrift = initialize("stripe", req);
-if (askrift.validPayload()) {
-  const normalized = /** @type {Stripe} */ (askrift).getNormalizedEvent();
-  // normalized.type is one of:
-  // subscription.created, subscription.updated, subscription.deleted,
-  // payment.succeeded, payment.failed
-}
-```
-
 ### Supported Services
- - Paddle
- - Stripe
- - Gumroad (Coming soon)
+
+| Service | Status | Webhook verification | Normalized lifecycle events |
+| --- | --- | --- | --- |
+| Paddle | ![stable](https://img.shields.io/badge/status-stable-brightgreen) | RSA/SHA1 payload signatures | subscriptions and subscription payments |
+| Stripe | ![stable](https://img.shields.io/badge/status-stable-brightgreen) | HMAC-SHA256 with timestamp tolerance using `STRIPE_WEBHOOK_SECRET` and `stripe-signature` | `customer.subscription.*` and `invoice.payment_*` events normalized to the framework's subscription/payment lifecycle |
+| Gumroad | ![beta](https://img.shields.io/badge/status-beta-yellow) | Optional HMAC-SHA256 using `GUMROAD_WEBHOOK_SECRET` and `x-gumroad-signature`/`x-signature` (set `requireSignature: true` to enforce) | sales, refunds, disputes, and subscription updates/cancellations |
+| Lemon Squeezy | ![beta](https://img.shields.io/badge/status-beta-yellow) | HMAC-SHA256 using `LEMON_SQUEEZY_WEBHOOK_SECRET` and `x-signature` | subscription, order, payment, and refund events |
+| Polar | ![beta](https://img.shields.io/badge/status-beta-yellow) | Standard Webhooks HMAC-SHA256 using `POLAR_WEBHOOK_SECRET` (`whsec_*` secrets supported) | subscription, order, payment, and refund events |

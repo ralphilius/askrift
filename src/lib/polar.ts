@@ -1,0 +1,83 @@
+import { VercelRequest } from '@vercel/node';
+import { Request } from 'express';
+import Askrift from './askrift';
+import { getHeader, getRawBody, hmacSha256Base64, isPostJsonOrForm, parseBody, timingSafeEqualString } from './utils';
+import {
+  PolarPaymentFailed,
+  PolarPaymentRefunded,
+  PolarPaymentSucceeded,
+  PolarSubscriptionCancelled,
+  PolarSubscriptionCreated,
+  PolarSubscriptionUpdated,
+  PolarWebhookPayload,
+} from '../types/polar/subscription';
+
+const EVENT_MAP = {
+  created: ['subscription.created', 'subscription.active'],
+  updated: ['subscription.updated', 'subscription.uncanceled'],
+  canceled: ['subscription.canceled', 'subscription.revoked'],
+  paymentSucceeded: ['order.paid', 'order.created'],
+  paymentFailed: ['subscription.past_due'],
+  paymentRefunded: ['order.refunded', 'refund.created', 'refund.updated'],
+};
+
+function normalize(payload: PolarWebhookPayload, type: any) {
+  const data = payload.data || {};
+  return {
+    provider: 'polar' as const,
+    type,
+    id: data.id,
+    subscriptionId: data.subscription_id || (payload.type?.startsWith('subscription.') ? data.id : null) || null,
+    customerId: data.customer_id || data.customer?.id || null,
+    customerEmail: data.customer?.email || null,
+    productId: data.product_id || null,
+    amount: typeof data.amount === 'number' ? data.amount : (typeof data.total_amount === 'number' ? data.total_amount : null),
+    currency: data.currency || null,
+    occurredAt: data.created_at || data.modified_at || null,
+    raw: payload,
+  };
+}
+
+function promisify<T>(req: any, eventNames: string[], type: any): Promise<T | null> {
+  return new Promise((resolve, reject) => {
+    try {
+      const payload = parseBody<PolarWebhookPayload>(req);
+      resolve(eventNames.includes(payload.type || '') ? normalize(payload, type) as unknown as T : null);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+export default class Polar extends Askrift<'polar'> {
+  private _req;
+  private _secret: string;
+
+  constructor(req: VercelRequest | Request, debugged?: boolean) {
+    super(debugged);
+    if (!process.env.POLAR_WEBHOOK_SECRET) throw 'POLAR_WEBHOOK_SECRET is required';
+    this._req = req;
+    this._secret = process.env.POLAR_WEBHOOK_SECRET;
+  }
+
+  onSubscriptionCreated(): Promise<PolarSubscriptionCreated | null> { return promisify(this._req, EVENT_MAP.created, 'subscription.created'); }
+  onSubscriptionCanceled(): Promise<PolarSubscriptionCancelled | null> { return promisify(this._req, EVENT_MAP.canceled, 'subscription.canceled'); }
+  onSubscriptionUpdated(): Promise<PolarSubscriptionUpdated | null> { return promisify(this._req, EVENT_MAP.updated, 'subscription.updated'); }
+  onPaymentSucceeded(): Promise<PolarPaymentSucceeded | null> { return promisify(this._req, EVENT_MAP.paymentSucceeded, 'payment.succeeded'); }
+  onPaymentFailed(): Promise<PolarPaymentFailed | null> { return promisify(this._req, EVENT_MAP.paymentFailed, 'payment.failed'); }
+  onPaymentRefunded(): Promise<PolarPaymentRefunded | null> { return promisify(this._req, EVENT_MAP.paymentRefunded, 'payment.refunded'); }
+  validRequest(): boolean { return isPostJsonOrForm(this._req); }
+  validPayload(): boolean {
+    const id = getHeader(this._req.headers, 'webhook-id');
+    const timestamp = getHeader(this._req.headers, 'webhook-timestamp');
+    const signatureHeader = getHeader(this._req.headers, 'webhook-signature');
+    if (!id || !timestamp || !signatureHeader) return false;
+    const signed = `${id}.${timestamp}.${getRawBody(this._req)}`;
+    const possibleSecrets = [this._secret];
+    if (this._secret.startsWith('whsec_')) {
+      possibleSecrets.push(Buffer.from(this._secret.slice(6), 'base64').toString('utf8'));
+    }
+    const signatures = signatureHeader.split(' ').map((signature) => signature.replace(/^v1,/, ''));
+    return possibleSecrets.some((secret) => signatures.some((signature) => timingSafeEqualString(signature, hmacSha256Base64(secret, signed))));
+  }
+}
