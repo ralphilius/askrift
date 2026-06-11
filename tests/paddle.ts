@@ -2,6 +2,7 @@ import Askrift, { initialize, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
+import { verifyPaddleSignature } from '../src/lib/paddle';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -21,6 +22,8 @@ const baseReq: any = {
   },
 };
 
+const paddlePublicKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
+
 const payload = {
   "alert_id": "120661188", "alert_name": "subscription_payment_succeeded", "balance_currency": "GBP", "balance_earnings": "990.07", "balance_fee": "99.44", "balance_gross": "570.99", "balance_tax": "213.9", "checkout_id": "7-8ed52238d1752b0-72f9b4c4b7", "country": "AU", "coupon": "Coupon 8", "currency": "GBP", "customer_name": "customer_name", "earnings": "850.26", "email": "mitchell.ollie@example.org", "event_time": "2021-09-10 10:36:39", "fee": "0.77", "initial_payment": "false", "instalments": "3", "marketing_consent": "", "next_bill_date": "2021-09-25", "next_payment_amount": "next_payment_amount", "order_id": "8",
   "passthrough": "Example String", "payment_method": "card", "payment_tax": "0.12", "plan_name": "Example String", "quantity": "21", "receipt_url": "https://my.paddle.com/receipt/8/485212962ae4daf-2e58a66474", "sale_gross": "463.62", "status": "active", "subscription_id": "8", "subscription_payment_id": "7", "subscription_plan_id": "6", "unit_price": "unit_price", "user_id": "4"
@@ -33,6 +36,26 @@ function ksort(obj: { [k: string]: any }) {
     sortedObj[key] = obj[key];
   }
   return sortedObj;
+}
+
+function signPayload(payload: { [k: string]: any }): string {
+  let signingPayload = ksort({ ...payload });
+
+  for (let property in signingPayload) {
+    if (signingPayload.hasOwnProperty(property) && (typeof signingPayload[property]) !== 'string') {
+      if (Array.isArray(signingPayload[property])) {
+        signingPayload[property] = signingPayload[property].toString();
+      } else {
+        signingPayload[property] = JSON.stringify(signingPayload[property]);
+      }
+    }
+  }
+
+  const signer = crypto.createSign('sha1');
+  signer.update(serialize(signingPayload));
+  signer.end();
+
+  return signer.sign(privateKey, 'base64');
 }
 
 function signedPayload(fields: { [k: string]: any }) {
@@ -57,6 +80,18 @@ function signedPayload(fields: { [k: string]: any }) {
   });
 }
 
+const validPayloadWithoutSignature = { ...payload };
+
+const validPayload = {
+  ...validPayloadWithoutSignature,
+  p_signature: signPayload(validPayloadWithoutSignature),
+};
+
+const invalidPayload = {
+  ...validPayloadWithoutSignature,
+  p_signature: 'badsign',
+};
+
 function createReq(method: string, body = signedPayload(payload)): any {
   return {
     ...baseReq,
@@ -65,7 +100,13 @@ function createReq(method: string, body = signedPayload(payload)): any {
   };
 }
 
-const validPayload = JSON.parse(signedPayload(payload));
+function reqFor(method: string, body: any): any {
+  return {
+    ...baseReq,
+    method,
+    body,
+  };
+}
 
 const urlEncodedReq = {
   ...baseReq,
@@ -118,6 +159,62 @@ describe('library works with paddle', function () {
   it('should not pass invalid payload', (done) => {
     assert.equal(askriftBadPd.validPayload(), false);
     done();
+  });
+
+  it('should return consistent results when validPayload is called multiple times', () => {
+    const req = reqFor('POST', { ...validPayload });
+    const paddle = initialize('paddle', req);
+
+    assert.equal(paddle.validPayload(), true);
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('should not remove p_signature from object request bodies after verification', () => {
+    const body = { ...validPayload };
+    const originalBody = JSON.parse(JSON.stringify(body));
+    const paddle = initialize('paddle', reqFor('POST', body));
+
+    assert.equal(paddle.validPayload(), true);
+    assert.deepEqual(body, originalBody);
+  });
+
+  it('should not replace string request bodies after verification', () => {
+    const body = JSON.stringify(validPayload);
+    const req = reqFor('POST', body);
+    const paddle = initialize('paddle', req);
+
+    assert.equal(paddle.validPayload(), true);
+    assert.equal(req.body, body);
+  });
+
+  it('should verify signatures with the standalone helper without mutating payloads', () => {
+    const body = { ...validPayload };
+    const originalBody = JSON.parse(JSON.stringify(body));
+
+    assert.equal(verifyPaddleSignature(body, paddlePublicKey), true);
+    assert.deepEqual(body, originalBody);
+  });
+
+  it('should reject payloads missing p_signature', () => {
+    assert.equal(verifyPaddleSignature({ ...validPayloadWithoutSignature }, paddlePublicKey), false);
+    assert.equal(initialize('paddle', reqFor('POST', { ...validPayloadWithoutSignature })).validPayload(), false);
+  });
+
+  it('should reject malformed signatures', () => {
+    const body = {
+      ...validPayloadWithoutSignature,
+      p_signature: 'not a valid paddle signature',
+    };
+
+    assert.equal(verifyPaddleSignature(body, paddlePublicKey), false);
+    assert.equal(initialize('paddle', reqFor('POST', body)).validPayload(), false);
+  });
+
+  it('should reject non-object payloads', () => {
+    assert.equal(verifyPaddleSignature(null, paddlePublicKey), false);
+    assert.equal(verifyPaddleSignature('not an object', paddlePublicKey), false);
+    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify(null))).validPayload(), false);
+    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify('not an object'))).validPayload(), false);
   });
 });
 
