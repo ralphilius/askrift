@@ -17,9 +17,9 @@ export type TypesMap = {
 export type InitializeOptions = PaddleOptions;
 
 type ProviderRequest = VercelRequest | Request;
-type ProviderConstructor = new (request: ProviderRequest, options?: InitializeOptions | boolean) => Askrift<any>;
+type ProviderConstructor<T extends keyof TypesMap> = new (request: ProviderRequest, options?: PaddleOptions | boolean) => Askrift<T>;
 
-const providers: Record<string, ProviderConstructor> = {
+const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,
 };
 
@@ -31,12 +31,17 @@ export class UnsupportedProviderError extends Error {
   }
 }
 
-export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): TypesMap[T];
-export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<any> {
+function resolveOptions(options?: InitializeOptions | boolean): PaddleOptions | boolean | undefined {
+  if (typeof options === 'boolean') return options;
+  return options;
+}
+
+export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<T>;
+export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<keyof TypesMap> {
   if (!Object.prototype.hasOwnProperty.call(providers, type)) {
     throw new UnsupportedProviderError(type);
   }
 
-  const Provider = providers[type];
-  return new Provider(request, options);
+  const Provider = providers[type as keyof TypesMap];
+  return new Provider(request, resolveOptions(options));
 };
