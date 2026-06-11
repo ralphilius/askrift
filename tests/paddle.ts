@@ -100,10 +100,14 @@ function createReq(method: string, body = signedPayload(payload)): any {
   };
 }
 
-function reqFor(method: string, body: any): any {
+function reqFor(method: string, body: any, contentType: string = 'application/x-www-form-urlencoded'): any {
   return {
     ...baseReq,
     method,
+    headers: {
+      ...baseReq.headers,
+      'content-type': contentType,
+    },
     body,
   };
 }
@@ -123,8 +127,8 @@ describe('library works with paddle', function () {
   let askriftUrlEncodedPd: Askrift<'paddle'>;
 
   it('should initalize successfully', (done) => {
-    askriftPd = initialize('paddle', createReq('POST'));
-    askriftBadPd = initialize('paddle', createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' })));
+    askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
+    askriftBadPd = initialize('paddle', reqFor('GET', JSON.stringify(invalidPayload), 'application/json'));
     askriftUrlEncodedPd = initialize('paddle', urlEncodedReq);
     done();
   });
@@ -162,7 +166,7 @@ describe('library works with paddle', function () {
   });
 
   it('should return consistent results when validPayload is called multiple times', () => {
-    const req = reqFor('POST', { ...validPayload });
+    const req = reqFor('POST', { ...validPayload }, 'application/json');
     const paddle = initialize('paddle', req);
 
     assert.equal(paddle.validPayload(), true);
@@ -172,7 +176,7 @@ describe('library works with paddle', function () {
   it('should not remove p_signature from object request bodies after verification', () => {
     const body = { ...validPayload };
     const originalBody = JSON.parse(JSON.stringify(body));
-    const paddle = initialize('paddle', reqFor('POST', body));
+    const paddle = initialize('paddle', reqFor('POST', body, 'application/json'));
 
     assert.equal(paddle.validPayload(), true);
     assert.deepEqual(body, originalBody);
@@ -180,7 +184,7 @@ describe('library works with paddle', function () {
 
   it('should not replace string request bodies after verification', () => {
     const body = JSON.stringify(validPayload);
-    const req = reqFor('POST', body);
+    const req = reqFor('POST', body, 'application/json');
     const paddle = initialize('paddle', req);
 
     assert.equal(paddle.validPayload(), true);
@@ -197,7 +201,7 @@ describe('library works with paddle', function () {
 
   it('should reject payloads missing p_signature', () => {
     assert.equal(verifyPaddleSignature({ ...validPayloadWithoutSignature }, paddlePublicKey), false);
-    assert.equal(initialize('paddle', reqFor('POST', { ...validPayloadWithoutSignature })).validPayload(), false);
+    assert.equal(initialize('paddle', reqFor('POST', { ...validPayloadWithoutSignature }, 'application/json')).validPayload(), false);
   });
 
   it('should reject malformed signatures', () => {
@@ -207,14 +211,14 @@ describe('library works with paddle', function () {
     };
 
     assert.equal(verifyPaddleSignature(body, paddlePublicKey), false);
-    assert.equal(initialize('paddle', reqFor('POST', body)).validPayload(), false);
+    assert.equal(initialize('paddle', reqFor('POST', body, 'application/json')).validPayload(), false);
   });
 
   it('should reject non-object payloads', () => {
     assert.equal(verifyPaddleSignature(null, paddlePublicKey), false);
     assert.equal(verifyPaddleSignature('not an object', paddlePublicKey), false);
-    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify(null))).validPayload(), false);
-    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify('not an object'))).validPayload(), false);
+    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify(null), 'application/json')).validPayload(), false);
+    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify('not an object'), 'application/json')).validPayload(), false);
   });
 
   it('should hand parsed body from validPayload to onSubscriptionCreated for string bodies', async () => {
@@ -224,7 +228,7 @@ describe('library works with paddle', function () {
     };
     const signedCreated = signPayload(createdPayload);
     const stringBody = JSON.stringify({ ...createdPayload, p_signature: signedCreated });
-    const paddle = initialize('paddle', reqFor('POST', stringBody));
+    const paddle = initialize('paddle', reqFor('POST', stringBody, 'application/json'));
 
     assert.equal(paddle.validPayload(), true);
     const event = await paddle.onSubscriptionCreated();
@@ -232,11 +236,68 @@ describe('library works with paddle', function () {
     assert.equal(event?.alert_name, 'subscription_created');
     assert.equal(event?.p_signature, signedCreated);
   });
+
+  it('should accept requests whose content-type includes a charset parameter', () => {
+    const formBody = new URLSearchParams(validPayload as any).toString();
+    const paddle = initialize('paddle', reqFor('POST', formBody, 'application/x-www-form-urlencoded; charset=utf-8'));
+
+    assert.equal(paddle.validRequest(), true);
+  });
+
+  it('should accept requests whose content-type is uppercase', () => {
+    const formBody = new URLSearchParams(validPayload as any).toString();
+    const paddle = initialize('paddle', reqFor('POST', formBody, 'Application/X-WWW-Form-URLEncoded'));
+
+    assert.equal(paddle.validRequest(), true);
+  });
+
+  it('should accept requests whose content-type is an array', () => {
+    const formBody = new URLSearchParams(validPayload as any).toString();
+    const req = reqFor('POST', formBody, 'application/x-www-form-urlencoded');
+    req.headers['content-type'] = ['application/x-www-form-urlencoded', 'text/plain'];
+    const paddle = initialize('paddle', req);
+
+    assert.equal(paddle.validRequest(), true);
+  });
+
+  it('should reject requests whose content-type is not form-urlencoded or json', () => {
+    const formBody = new URLSearchParams(validPayload as any).toString();
+    const paddle = initialize('paddle', reqFor('POST', formBody, 'text/plain'));
+
+    assert.equal(paddle.validRequest(), false);
+  });
+
+  it('should verify signatures of form-urlencoded Paddle Classic webhooks', () => {
+    const formBody = new URLSearchParams(validPayload as any).toString();
+    const paddle = initialize('paddle', reqFor('POST', formBody, 'application/x-www-form-urlencoded'));
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('should reject form-urlencoded bodies whose signature is invalid', () => {
+    const invalidFormBody = new URLSearchParams(invalidPayload as any).toString();
+    const paddle = initialize('paddle', reqFor('POST', invalidFormBody, 'application/x-www-form-urlencoded'));
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('should make event handlers work after validRequest() without calling validPayload() first', async () => {
+    const formBody = new URLSearchParams(validPayload as any).toString();
+    const paddle = initialize('paddle', reqFor('POST', formBody, 'application/x-www-form-urlencoded'));
+
+    assert.equal(paddle.validRequest(), true);
+    const event = await paddle.onPaymentSucceeded();
+    assert.isNotNull(event);
+    assert.equal(event?.alert_name, 'subscription_payment_succeeded');
+    assert.equal(event?.subscription_id, '8');
+  });
 });
 
 describe('provider registry initialization', function () {
   it('dispatches paddle through the provider registry', async () => {
-    const askriftPd = initialize('paddle', createReq('POST'));
+    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
 
     assert.equal(askriftPd.validRequest(), true);
     assert.equal(askriftPd.validPayload(), true);
@@ -248,20 +309,20 @@ describe('provider registry initialization', function () {
   });
 
   it('supports the existing boolean debug argument for paddle users', () => {
-    const askriftPd = initialize('paddle', createReq('POST'), true);
+    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'), true);
 
     assert.equal(askriftPd.validRequest(), true);
   });
 
   it('supports the options object debug argument for paddle users', () => {
-    const askriftPd = initialize('paddle', createReq('POST'), { debug: true });
+    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'), { debug: true });
 
     assert.equal(askriftPd.validRequest(), true);
   });
 
   it('throws UnsupportedProviderError for unsupported providers', () => {
     assert.throws(
-      () => initialize('stripe' as any, createReq('POST')),
+      () => initialize('stripe' as any, reqFor('POST', JSON.stringify(validPayload), 'application/json')),
       UnsupportedProviderError,
       'Unsupported provider: stripe'
     );
@@ -269,7 +330,7 @@ describe('provider registry initialization', function () {
 
   it('throws UnsupportedProviderError for unsupported object prototype keys', () => {
     assert.throws(
-      () => initialize('__proto__' as any, createReq('POST')),
+      () => initialize('__proto__' as any, reqFor('POST', JSON.stringify(validPayload), 'application/json')),
       UnsupportedProviderError,
       'Unsupported provider: __proto__'
     );

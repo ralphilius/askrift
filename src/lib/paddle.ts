@@ -122,7 +122,7 @@ export function verifyPaddleSignature(payload: unknown, publicKey: string): bool
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req;
   private _pubKey: string;
-  private _parsedBody: PaddlePayload | null = null;
+  private _parsedBody: PaddlePayload | null | undefined;
   private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
@@ -157,7 +157,9 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   }
 
   validRequest(): boolean {
-    return this._req.method == 'POST' && normaliseContentType(this._req.headers['content-type']) == 'application/x-www-form-urlencoded';
+    if (this._req.method !== 'POST') return false;
+    const contentType = normaliseContentType(this._req.headers['content-type']);
+    return contentType === 'application/x-www-form-urlencoded' || contentType === 'application/json';
   }
 
   verify(): boolean {
