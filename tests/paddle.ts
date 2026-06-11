@@ -447,9 +447,9 @@ describe('provider registry initialization', function () {
 
   it('throws UnsupportedProviderError for unsupported providers', () => {
     assert.throws(
-      () => initialize('stripe' as any, fromVercel(createReq('POST'))),
+      () => initialize('unknown' as any, fromVercel(createReq('POST'))),
       UnsupportedProviderError,
-      'Unsupported provider: stripe'
+      'Unsupported provider: unknown'
     );
   });
 

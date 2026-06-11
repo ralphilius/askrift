@@ -39,10 +39,9 @@ function isStripeSupportedEventType(type: string): type is StripeSupportedEventT
 }
 
 function timingSafeEqual(expected: string, actual: string): boolean {
+  if (expected.length !== actual.length) return false;
   const expectedBuffer = Buffer.from(expected, "hex");
   const actualBuffer = Buffer.from(actual, "hex");
-
-  if (expectedBuffer.length !== actualBuffer.length) return false;
 
   return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
@@ -93,7 +92,7 @@ export default class Stripe extends Askrift<"stripe"> {
 
   constructor(req: StripeRequest, debugged?: boolean) {
     super(debugged);
-    if (!process.env.STRIPE_WEBHOOK_SECRET) throw "STRIPE_WEBHOOK_SECRET is required";
+    if (!process.env.STRIPE_WEBHOOK_SECRET) throw new Error("STRIPE_WEBHOOK_SECRET is required");
     this._req = req;
     this._webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   }
@@ -147,8 +146,8 @@ export default class Stripe extends Askrift<"stripe"> {
       const separatorIndex = part.indexOf("=");
       if (separatorIndex < 0) return memo;
 
-      const key = part.slice(0, separatorIndex);
-      const value = part.slice(separatorIndex + 1);
+      const key = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
       memo[key] = memo[key] || [];
       memo[key].push(value);
       return memo;
@@ -212,12 +211,8 @@ export default class Stripe extends Askrift<"stripe"> {
     };
   }
 
-  private eventForType<T extends StripeSupportedEvent>(type: StripeSupportedEventType): Promise<T | null> {
-    try {
-      const event = this.parseEvent();
-      return Promise.resolve(event.type === type ? (event as T) : null);
-    } catch (error) {
-      return Promise.reject(error);
-    }
+  private async eventForType<T extends StripeSupportedEvent>(type: StripeSupportedEventType): Promise<T | null> {
+    const event = this.parseEvent();
+    return event.type === type ? (event as T) : null;
   }
 }
