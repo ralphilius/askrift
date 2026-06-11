@@ -42,7 +42,7 @@ function promisify<T>(req: any, eventNames: string[], type: any, requireSubscrip
     try {
       const payload = parseBody<GumroadWebhookPayload>(req);
       const resource = payload.resource_name || getHeader(req.headers, 'x-gumroad-resource-name');
-      const matches = eventNames.includes(resource || '') && (!requireSubscription || Boolean(payload.subscription_id));
+      const matches = !resource || eventNames.includes(resource) && (!requireSubscription || Boolean(payload.subscription_id));
       resolve(matches ? normalize(payload, type) as unknown as T : null);
     } catch (error) {
       reject(error);
@@ -56,7 +56,7 @@ export default class Gumroad extends Askrift<'gumroad'> {
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
     super(debugged);
-    if (!process.env.GUMROAD_WEBHOOK_SECRET) throw 'GUMROAD_WEBHOOK_SECRET is required';
+    if (!process.env.GUMROAD_WEBHOOK_SECRET) throw new Error('GUMROAD_WEBHOOK_SECRET is required');
     this._req = req;
     this._secret = process.env.GUMROAD_WEBHOOK_SECRET;
   }
@@ -84,6 +84,7 @@ export default class Gumroad extends Askrift<'gumroad'> {
   }
   validPayload(): boolean {
     const signature = getHeader(this._req.headers, 'x-gumroad-signature') || getHeader(this._req.headers, 'x-signature');
+    if (!signature) return true;
     const expected = hmacSha256Hex(this._secret, getRawBody(this._req));
     return timingSafeEqualString(signature, expected);
   }

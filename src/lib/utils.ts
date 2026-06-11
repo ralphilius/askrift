@@ -12,6 +12,16 @@ export function getHeader(headers: Record<string, any> | undefined, name: string
   return value === undefined ? undefined : String(value);
 }
 
+/**
+ * Returns the raw, unparsed request body as a string.
+ *
+ * Providers that verify HMAC signatures require an unmodified `rawBody` (or
+ * `body` as a string/Buffer). When the request body is supplied as a parsed
+ * object, this falls back to `JSON.stringify` which may not match the bytes
+ * the upstream webhook sender signed (whitespace, key order, encoding). For
+ * HMAC-verifying providers, ensure the platform populates `rawBody` (e.g.
+ * Vercel's `request.rawBody` or a body-parser configured with `raw`/`verify`).
+ */
 export function getRawBody(req: any): string {
   if (typeof req.rawBody === 'string') return req.rawBody;
   if (Buffer.isBuffer(req.rawBody)) return req.rawBody.toString('utf8');

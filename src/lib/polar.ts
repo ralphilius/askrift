@@ -12,11 +12,13 @@ import {
   PolarWebhookPayload,
 } from '../types/polar/subscription';
 
+const POLAR_TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
+
 const EVENT_MAP = {
   created: ['subscription.created', 'subscription.active'],
   updated: ['subscription.updated', 'subscription.uncanceled'],
   canceled: ['subscription.canceled', 'subscription.revoked'],
-  paymentSucceeded: ['order.paid', 'order.created'],
+  paymentSucceeded: ['order.paid'],
   paymentFailed: ['subscription.past_due'],
   paymentRefunded: ['order.refunded', 'refund.created', 'refund.updated'],
 };
@@ -55,7 +57,7 @@ export default class Polar extends Askrift<'polar'> {
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
     super(debugged);
-    if (!process.env.POLAR_WEBHOOK_SECRET) throw 'POLAR_WEBHOOK_SECRET is required';
+    if (!process.env.POLAR_WEBHOOK_SECRET) throw new Error('POLAR_WEBHOOK_SECRET is required');
     this._req = req;
     this._secret = process.env.POLAR_WEBHOOK_SECRET;
   }
@@ -72,10 +74,14 @@ export default class Polar extends Askrift<'polar'> {
     const timestamp = getHeader(this._req.headers, 'webhook-timestamp');
     const signatureHeader = getHeader(this._req.headers, 'webhook-signature');
     if (!id || !timestamp || !signatureHeader) return false;
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isFinite(timestampSeconds)) return false;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSeconds - timestampSeconds) > POLAR_TIMESTAMP_TOLERANCE_SECONDS) return false;
     const signed = `${id}.${timestamp}.${getRawBody(this._req)}`;
-    const possibleSecrets = [this._secret];
+    const possibleSecrets: (string | Buffer)[] = [this._secret];
     if (this._secret.startsWith('whsec_')) {
-      possibleSecrets.push(Buffer.from(this._secret.slice(6), 'base64').toString('utf8'));
+      possibleSecrets.push(Buffer.from(this._secret.slice(6), 'base64'));
     }
     const signatures = signatureHeader.split(' ').map((signature) => signature.replace(/^v1,/, ''));
     return possibleSecrets.some((secret) => signatures.some((signature) => timingSafeEqualString(signature, hmacSha256Base64(secret, signed))));
