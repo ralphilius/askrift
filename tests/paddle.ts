@@ -1,9 +1,18 @@
-import Askrift, { initialize } from '../src';
-import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
-import { assert } from 'chai';
-import * as crypto from "crypto";
+import Askrift, { initialize, UnsupportedProviderError } from '../src';
+import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
+import { assert } from 'chai';
+
+const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+});
+
+process.env.PADDLE_PUBLIC_KEY = publicKey
+  .export({ type: 'spki', format: 'pem' })
+  .toString()
+  .replace('-----BEGIN PUBLIC KEY-----', '')
+  .replace('-----END PUBLIC KEY-----', '')
+  .replace(/\s+/g, '');
 
 const baseReq: any = {
   query: {},
@@ -12,67 +21,69 @@ const baseReq: any = {
   },
 };
 
-const keyPair = crypto.generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
+const payload = {
+  "alert_id": "120661188", "alert_name": "subscription_payment_succeeded", "balance_currency": "GBP", "balance_earnings": "990.07", "balance_fee": "99.44", "balance_gross": "570.99", "balance_tax": "213.9", "checkout_id": "7-8ed52238d1752b0-72f9b4c4b7", "country": "AU", "coupon": "Coupon 8", "currency": "GBP", "customer_name": "customer_name", "earnings": "850.26", "email": "mitchell.ollie@example.org", "event_time": "2021-09-10 10:36:39", "fee": "0.77", "initial_payment": "false", "instalments": "3", "marketing_consent": "", "next_bill_date": "2021-09-25", "next_payment_amount": "next_payment_amount", "order_id": "8",
+  "passthrough": "Example String", "payment_method": "card", "payment_tax": "0.12", "plan_name": "Example String", "quantity": "21", "receipt_url": "https://my.paddle.com/receipt/8/485212962ae4daf-2e58a66474", "sale_gross": "463.62", "status": "active", "subscription_id": "8", "subscription_payment_id": "7", "subscription_plan_id": "6", "unit_price": "unit_price", "user_id": "4"
+};
 
-process.env.PADDLE_PUBLIC_KEY = keyPair.publicKey
-  .replace('-----BEGIN PUBLIC KEY-----', '')
-  .replace('-----END PUBLIC KEY-----', '')
-  .replace(/\s/g, '');
-
-function signPayload(payload: { [key: string]: string }): string {
-  const orderedPayload = Object.keys(payload).sort().reduce((accumulator, key) => {
-    accumulator[key] = payload[key];
-    return accumulator;
-  }, {} as { [key: string]: string });
-  const signer = crypto.createSign('sha1');
-  signer.update(serialize(orderedPayload));
-  signer.end();
-
-  return signer.sign(keyPair.privateKey).toString('base64');
+function ksort(obj: { [k: string]: any }) {
+  const keys = Object.keys(obj).sort();
+  let sortedObj: { [k: string]: any } = {};
+  for (const key of keys) {
+    sortedObj[key] = obj[key];
+  }
+  return sortedObj;
 }
 
-const unsignedPayload = {
-    "alert_id": "120661188", "alert_name": "subscription_payment_succeeded", "balance_currency": "GBP", "balance_earnings": "990.07", "balance_fee": "99.44", "balance_gross": "570.99", "balance_tax": "213.9", "checkout_id": "7-8ed52238d1752b0-72f9b4c4b7", "country": "AU", "coupon": "Coupon 8", "currency": "GBP", "customer_name": "customer_name", "earnings": "850.26", "email": "mitchell.ollie@example.org", "event_time": "2021-09-10 10:36:39", "fee": "0.77", "initial_payment": "false", "instalments": "3", "marketing_consent": "", "next_bill_date": "2021-09-25", "next_payment_amount": "next_payment_amount", "order_id": "8",
-"passthrough": "Example String", "payment_method": "card", "payment_tax": "0.12", "plan_name": "Example String", "quantity": "21", "receipt_url": "https://my.paddle.com/receipt/8/485212962ae4daf-2e58a66474", "sale_gross": "463.62", "status": "active", "subscription_id": "8", "subscription_payment_id": "7", "subscription_plan_id": "6", "unit_price": "unit_price", "user_id": "4"
-};
+function signedPayload(fields: { [k: string]: any }) {
+  const jsonObj = ksort({ ...fields });
+  for (const property of Object.keys(jsonObj)) {
+    if ((typeof jsonObj[property]) !== "string") {
+      if (Array.isArray(jsonObj[property])) {
+        jsonObj[property] = jsonObj[property].toString();
+      } else {
+        jsonObj[property] = JSON.stringify(jsonObj[property]);
+      }
+    }
+  }
 
-const validPayload = {
-  ...unsignedPayload,
-  p_signature: signPayload(unsignedPayload),
-};
+  const signer = crypto.createSign('sha1');
+  signer.update(serialize(jsonObj));
+  signer.end();
 
-const goodReq: any = {...baseReq, ...{
-  method: 'POST',
-  body: JSON.stringify(validPayload)
-}};
+  return JSON.stringify({
+    ...fields,
+    p_signature: signer.sign(privateKey, 'base64'),
+  });
+}
 
-const urlEncodedReq: any = {...baseReq, ...{
+function createReq(method: string, body = signedPayload(payload)): any {
+  return {
+    ...baseReq,
+    method,
+    body,
+  };
+}
+
+const validPayload = JSON.parse(signedPayload(payload));
+
+const urlEncodedReq = {
+  ...baseReq,
   method: 'POST',
   headers: {
     'content-type': 'application/x-www-form-urlencoded; charset=utf-8'
   },
-  body: new URLSearchParams(validPayload).toString()
-}};
-
-const badReq: any = {...baseReq, ...{
-  method: 'GET',
-  body: JSON.stringify({
-    "alert_id": "120661188", "alert_name": "subscription_payment_succeeded", "balance_currency": "GBP", "balance_earnings": "990.07", "balance_fee": "99.44", "balance_gross": "570.99", "balance_tax": "213.9", "checkout_id": "7-8ed52238d1752b0-72f9b4c4b7", "country": "AU", "coupon": "Coupon 8", "currency": "GBP", "customer_name": "customer_name", "earnings": "850.26", "email": "mitchell.ollie@example.org", "event_time": "2021-09-10 10:36:39", "fee": "0.77", "initial_payment": "false", "instalments": "3", "marketing_consent": "", "next_bill_date": "2021-09-25", "next_payment_amount": "next_payment_amount", "order_id": "8",
-    "p_signature": "badsign", "passthrough": "Example String", "payment_method": "card", "payment_tax": "0.12", "plan_name": "Example String", "quantity": "21", "receipt_url": "https://my.paddle.com/receipt/8/485212962ae4daf-2e58a66474", "sale_gross": "463.62", "status": "active", "subscription_id": "8", "subscription_payment_id": "7", "subscription_plan_id": "6", "unit_price": "unit_price", "user_id": "4"
-  })
-}};
+  body: new URLSearchParams(validPayload).toString(),
+};
 
 describe('library works with paddle', function () {
   let askriftPd: Askrift<'paddle'>;
   let askriftBadPd: Askrift<'paddle'>;
   let askriftUrlEncodedPd: Askrift<'paddle'>;
+
   it('should initalize successfully', (done) => {
-    askriftPd = initialize('paddle', goodReq);
-    askriftBadPd = initialize('paddle', badReq);
+    askriftPd = initialize('paddle', createReq('POST'));
+    askriftBadPd = initialize('paddle', createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' })));
     askriftUrlEncodedPd = initialize('paddle', urlEncodedReq);
     done();
   });
@@ -108,5 +119,46 @@ describe('library works with paddle', function () {
     assert.equal(askriftBadPd.validPayload(), false);
     done();
   });
+});
 
-})
+describe('provider registry initialization', function () {
+  it('dispatches paddle through the provider registry', async () => {
+    const askriftPd = initialize('paddle', createReq('POST'));
+
+    assert.equal(askriftPd.validRequest(), true);
+    assert.equal(askriftPd.validPayload(), true);
+    assert.deepInclude(await askriftPd.onPaymentSucceeded(), {
+      alert_name: 'subscription_payment_succeeded',
+      subscription_id: '8',
+    });
+    assert.equal(await askriftPd.onSubscriptionCreated(), null);
+  });
+
+  it('supports the existing boolean debug argument for paddle users', () => {
+    const askriftPd = initialize('paddle', createReq('POST'), true);
+
+    assert.equal(askriftPd.validRequest(), true);
+  });
+
+  it('supports the options object debug argument for paddle users', () => {
+    const askriftPd = initialize('paddle', createReq('POST'), { debug: true });
+
+    assert.equal(askriftPd.validRequest(), true);
+  });
+
+  it('throws UnsupportedProviderError for unsupported providers', () => {
+    assert.throws(
+      () => initialize('stripe' as any, createReq('POST')),
+      UnsupportedProviderError,
+      'Unsupported provider: stripe'
+    );
+  });
+
+  it('throws UnsupportedProviderError for unsupported object prototype keys', () => {
+    assert.throws(
+      () => initialize('__proto__' as any, createReq('POST')),
+      UnsupportedProviderError,
+      'Unsupported provider: __proto__'
+    );
+  });
+});
