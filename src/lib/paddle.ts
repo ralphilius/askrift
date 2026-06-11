@@ -26,6 +26,7 @@ import {
 import { fromRaw } from "./request";
 import type { InternalRequest } from "./request";
 import { isObject } from "./utils";
+import { EventTimestampValidationOptions, extractEventTimestamp, extractStableEventId, isEventFresh, normalizeWebhookEvent } from "./idempotency";
 
 type PaddlePayload = { [k: string]: any };
 
@@ -228,6 +229,21 @@ export function verifyPaddleSignature(payload: unknown, publicKey: string): bool
   }
 }
 
+function promisify<T>(obj: any, key: string): Promise<T | null> {
+  return new Promise<T | null>((resolve, reject) => {
+    const payload = parseBody(obj);
+    if (payload) {
+      if (payload['alert_name'] == key) {
+        resolve(normalizeWebhookEvent('paddle', payload) as unknown as T);
+      } else {
+        resolve(null)
+      }
+    } else {
+      reject("Invalid body")
+    }
+  });
+}
+
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req: InternalRequest;
   private _pubKey: string;
@@ -336,6 +352,42 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     this._parsedBody = null;
     this._providerKind = null;
     return false;
+  }
+
+  getIdempotencyKey(): string | null {
+    const payload = parseBody(this._req.body);
+    const eventId = extractStableEventId('paddle', payload);
+    return eventId ? `paddle:${eventId}` : null;
+  }
+
+  getEventTimestamp(): Date | null {
+    return extractEventTimestamp('paddle', parseBody(this._req.body));
+  }
+
+  validEventAge(options: EventTimestampValidationOptions): boolean {
+    return isEventFresh('paddle', parseBody(this._req.body), options);
+  }
+
+  validPayload(options?: EventTimestampValidationOptions): boolean {
+    if (!this.verify()) return false;
+    if (!options) return true;
+    try {
+      const isFresh = this.validEventAge(options);
+      if (isFresh === null || isFresh === false) {
+        this._parsedBody = null;
+        this._providerKind = null;
+        return false;
+      }
+      return true;
+    } catch (ageError) {
+      if (ageError instanceof Error && (ageError.message === "toleranceMs must be non-negative" || ageError.message === "maxAgeMs must be non-negative")) {
+        throw ageError;
+      }
+      this.debug(ageError);
+      this._parsedBody = null;
+      this._providerKind = null;
+      return false;
+    }
   }
 
   private matchesExpectedProviderKind(detected: 'classic' | 'billing'): boolean {

@@ -56,3 +56,6 @@ export function initialize(type: string, request: ProviderRequest, options?: Ini
   };
   return new Provider(request, mergedOptions);
 };
+
+export { extractStableEventId, extractEventTimestamp, isEventFresh, normalizeWebhookEvent } from "./lib/idempotency";
+export type { EventTimestampValidationOptions, NormalizedWebhookEvent, WebhookProvider } from "./lib/idempotency";
