@@ -98,13 +98,8 @@ export default class Paddle extends Askrift<"paddle"> {
     this.debug(this._req.body);
     const payload = parseBody(this._req.body);
     if (!payload || typeof payload.p_signature !== 'string') return false;
-    if (typeof this._req.body === 'string') {
-      this._req.body = payload;
-    }
 
     this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
-    // Keep the original request body intact for event handlers while verifying
-    // a copy without p_signature, as required by Paddle.
     const { p_signature, ...unsignedPayload } = payload;
     let jsonObj = ksort(unsignedPayload);
     for (let property in jsonObj) {
