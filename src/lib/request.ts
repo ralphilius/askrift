@@ -23,13 +23,13 @@ type FrameworkRequest = {
   rawBody?: Buffer | string;
 };
 
-function normalizeHeaders(headers: Record<string, HeaderValue> = {}): RequestHeaders {
-  return Object.entries(headers).reduce<RequestHeaders>((normalized, [key, value]) => {
+function normalizeHeaders(headers: Record<string, HeaderValue> | null = {}): RequestHeaders {
+  return Object.entries(headers || {}).reduce<RequestHeaders>((normalized, [key, value]) => {
     const normalizedKey = key.toLowerCase();
 
     if (Array.isArray(value)) {
       normalized[normalizedKey] = value.map(String);
-    } else if (value === undefined) {
+    } else if (value === undefined || value === null) {
       normalized[normalizedKey] = undefined;
     } else {
       normalized[normalizedKey] = String(value);
@@ -49,19 +49,21 @@ export function fromRaw({ method, headers = {}, body, rawBody }: RawRequestInput
 }
 
 export function fromExpress(req: FrameworkRequest): InternalRequest {
+  const safeReq = req || {};
   return fromRaw({
-    method: req.method || '',
-    headers: req.headers,
-    body: req.body,
-    rawBody: req.rawBody,
+    method: safeReq.method || '',
+    headers: safeReq.headers,
+    body: safeReq.body,
+    rawBody: safeReq.rawBody,
   });
 }
 
 export function fromVercel(req: FrameworkRequest): InternalRequest {
+  const safeReq = req || {};
   return fromRaw({
-    method: req.method || '',
-    headers: req.headers,
-    body: req.body,
-    rawBody: req.rawBody,
+    method: safeReq.method || '',
+    headers: safeReq.headers,
+    body: safeReq.body,
+    rawBody: safeReq.rawBody,
   });
 }
