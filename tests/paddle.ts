@@ -41,8 +41,8 @@ function ksort(obj: { [k: string]: any }) {
 function signPayload(payload: { [k: string]: any }): string {
   let signingPayload = ksort({ ...payload });
 
-  for (let property in signingPayload) {
-    if (signingPayload.hasOwnProperty(property) && (typeof signingPayload[property]) !== 'string') {
+  for (const property of Object.keys(signingPayload)) {
+    if ((typeof signingPayload[property]) !== 'string') {
       if (Array.isArray(signingPayload[property])) {
         signingPayload[property] = signingPayload[property].toString();
       } else {
@@ -215,6 +215,22 @@ describe('library works with paddle', function () {
     assert.equal(verifyPaddleSignature('not an object', paddlePublicKey), false);
     assert.equal(initialize('paddle', reqFor('POST', JSON.stringify(null))).validPayload(), false);
     assert.equal(initialize('paddle', reqFor('POST', JSON.stringify('not an object'))).validPayload(), false);
+  });
+
+  it('should hand parsed body from validPayload to onSubscriptionCreated for string bodies', async () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+    };
+    const signedCreated = signPayload(createdPayload);
+    const stringBody = JSON.stringify({ ...createdPayload, p_signature: signedCreated });
+    const paddle = initialize('paddle', reqFor('POST', stringBody));
+
+    assert.equal(paddle.validPayload(), true);
+    const event = await paddle.onSubscriptionCreated();
+    assert.isNotNull(event);
+    assert.equal(event?.alert_name, 'subscription_created');
+    assert.equal(event?.p_signature, signedCreated);
   });
 });
 

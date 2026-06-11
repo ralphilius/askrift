@@ -41,8 +41,8 @@ const PADDLE_EVENT_TYPES: Record<string, SubscriptionEventType> = {
 function ksort(obj: PaddlePayload) {
   const keys = Object.keys(obj).sort();
   let sortedObj: PaddlePayload = {};
-  for (let i in keys) {
-    sortedObj[keys[i]] = obj[keys[i]];
+  for (const key of keys) {
+    sortedObj[key] = obj[key];
   }
   return sortedObj;
 }
@@ -96,11 +96,11 @@ export function verifyPaddleSignature(payload: unknown, publicKey: string): bool
   delete copiedPayload.p_signature;
 
   let jsonObj = ksort(copiedPayload);
-  for (let property in jsonObj) {
-    if (jsonObj.hasOwnProperty(property) && (typeof jsonObj[property]) !== "string") {
-      if (Array.isArray(jsonObj[property])) {
+  for (const property of Object.keys(jsonObj)) {
+    if ((typeof jsonObj[property]) !== "string") {
+      if (Array.isArray(jsonObj[property])) { // is it an array
         jsonObj[property] = jsonObj[property].toString();
-      } else {
+      } else { //if its not an array and not a string, then it is a JSON obj
         jsonObj[property] = JSON.stringify(jsonObj[property]);
       }
     }
