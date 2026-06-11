@@ -30,7 +30,6 @@ function resolveDebugOption(options?: InitializeOptions | boolean): boolean | un
 }
 
 export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<T>;
-export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<keyof TypesMap>;
 export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<keyof TypesMap> {
   if (!Object.prototype.hasOwnProperty.call(providers, type)) {
     throw new UnsupportedProviderError(type);
