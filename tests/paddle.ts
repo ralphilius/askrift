@@ -1,4 +1,4 @@
-import { initialize, Paddle, UnsupportedProviderError } from '../src';
+import Askrift, { initialize, fromVercel, Paddle, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
@@ -140,9 +140,9 @@ describe('library works with paddle', function () {
   });
 
   it('should initalize successfully', (done) => {
-    askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
-    askriftBadPd = initialize('paddle', reqFor('GET', JSON.stringify(invalidPayload), 'application/json'));
-    askriftUrlEncodedPd = initialize('paddle', urlEncodedReq);
+    askriftPd = initialize('paddle', fromVercel(createReq('POST')));
+    askriftBadPd = initialize('paddle', fromVercel(createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' }))));
+    askriftUrlEncodedPd = initialize('paddle', fromVercel(urlEncodedReq));
     done();
   });
 
@@ -180,7 +180,7 @@ describe('library works with paddle', function () {
 
   it('should return consistent results when validPayload is called multiple times', () => {
     const req = reqFor('POST', { ...validPayload }, 'application/json');
-    const paddle = initialize('paddle', req);
+    const paddle = initialize('paddle', fromVercel(req));
 
     assert.equal(paddle.validPayload(), true);
     assert.equal(paddle.validPayload(), true);
@@ -189,7 +189,7 @@ describe('library works with paddle', function () {
   it('should not remove p_signature from object request bodies after verification', () => {
     const body = { ...validPayload };
     const originalBody = JSON.parse(JSON.stringify(body));
-    const paddle = initialize('paddle', reqFor('POST', body, 'application/json'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', body, 'application/json')));
 
     assert.equal(paddle.validPayload(), true);
     assert.deepEqual(body, originalBody);
@@ -198,7 +198,7 @@ describe('library works with paddle', function () {
   it('should not replace string request bodies after verification', () => {
     const body = JSON.stringify(validPayload);
     const req = reqFor('POST', body, 'application/json');
-    const paddle = initialize('paddle', req);
+    const paddle = initialize('paddle', fromVercel(req));
 
     assert.equal(paddle.validPayload(), true);
     assert.equal(req.body, body);
@@ -214,7 +214,7 @@ describe('library works with paddle', function () {
 
   it('should reject payloads missing p_signature', () => {
     assert.equal(verifyPaddleSignature({ ...validPayloadWithoutSignature }, paddlePublicKey), false);
-    assert.equal(initialize('paddle', reqFor('POST', { ...validPayloadWithoutSignature }, 'application/json')).validPayload(), false);
+    assert.equal(initialize('paddle', fromVercel(reqFor('POST', { ...validPayloadWithoutSignature }, 'application/json'))).validPayload(), false);
   });
 
   it('should reject malformed signatures', () => {
@@ -224,14 +224,14 @@ describe('library works with paddle', function () {
     };
 
     assert.equal(verifyPaddleSignature(body, paddlePublicKey), false);
-    assert.equal(initialize('paddle', reqFor('POST', body, 'application/json')).validPayload(), false);
+    assert.equal(initialize('paddle', fromVercel(reqFor('POST', body, 'application/json'))).validPayload(), false);
   });
 
   it('should reject non-object payloads', () => {
     assert.equal(verifyPaddleSignature(null, paddlePublicKey), false);
     assert.equal(verifyPaddleSignature('not an object', paddlePublicKey), false);
-    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify(null), 'application/json')).validPayload(), false);
-    assert.equal(initialize('paddle', reqFor('POST', JSON.stringify('not an object'), 'application/json')).validPayload(), false);
+    assert.equal(initialize('paddle', fromVercel(reqFor('POST', JSON.stringify(null), 'application/json'))).validPayload(), false);
+    assert.equal(initialize('paddle', fromVercel(reqFor('POST', JSON.stringify('not an object'), 'application/json'))).validPayload(), false);
   });
 
   it('should hand parsed body from validPayload to onSubscriptionCreated for string bodies', async () => {
@@ -241,7 +241,7 @@ describe('library works with paddle', function () {
     };
     const signedCreated = signPayload(createdPayload);
     const stringBody = JSON.stringify({ ...createdPayload, p_signature: signedCreated });
-    const paddle = initialize('paddle', reqFor('POST', stringBody, 'application/json'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', stringBody, 'application/json')));
 
     assert.equal(paddle.validPayload(), true);
     const event = await paddle.onSubscriptionCreated();
@@ -252,14 +252,14 @@ describe('library works with paddle', function () {
 
   it('should accept requests whose content-type includes a charset parameter', () => {
     const formBody = new URLSearchParams(validPayload as any).toString();
-    const paddle = initialize('paddle', reqFor('POST', formBody, 'application/x-www-form-urlencoded; charset=utf-8'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', formBody, 'application/x-www-form-urlencoded; charset=utf-8')));
 
     assert.equal(paddle.validRequest(), true);
   });
 
   it('should accept requests whose content-type is uppercase', () => {
     const formBody = new URLSearchParams(validPayload as any).toString();
-    const paddle = initialize('paddle', reqFor('POST', formBody, 'Application/X-WWW-Form-URLEncoded'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', formBody, 'Application/X-WWW-Form-URLEncoded')));
 
     assert.equal(paddle.validRequest(), true);
   });
@@ -268,21 +268,21 @@ describe('library works with paddle', function () {
     const formBody = new URLSearchParams(validPayload as any).toString();
     const req = reqFor('POST', formBody, 'application/x-www-form-urlencoded');
     req.headers['content-type'] = ['application/x-www-form-urlencoded', 'text/plain'];
-    const paddle = initialize('paddle', req);
+    const paddle = initialize('paddle', fromVercel(req));
 
     assert.equal(paddle.validRequest(), true);
   });
 
   it('should reject requests whose content-type is not form-urlencoded or json', () => {
     const formBody = new URLSearchParams(validPayload as any).toString();
-    const paddle = initialize('paddle', reqFor('POST', formBody, 'text/plain'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', formBody, 'text/plain')));
 
     assert.equal(paddle.validRequest(), false);
   });
 
   it('should verify signatures of form-urlencoded Paddle Classic webhooks', () => {
     const formBody = new URLSearchParams(validPayload as any).toString();
-    const paddle = initialize('paddle', reqFor('POST', formBody, 'application/x-www-form-urlencoded'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', formBody, 'application/x-www-form-urlencoded')));
 
     assert.equal(paddle.validRequest(), true);
     assert.equal(paddle.validPayload(), true);
@@ -290,7 +290,7 @@ describe('library works with paddle', function () {
 
   it('should reject form-urlencoded bodies whose signature is invalid', () => {
     const invalidFormBody = new URLSearchParams(invalidPayload as any).toString();
-    const paddle = initialize('paddle', reqFor('POST', invalidFormBody, 'application/x-www-form-urlencoded'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', invalidFormBody, 'application/x-www-form-urlencoded')));
 
     assert.equal(paddle.validRequest(), true);
     assert.equal(paddle.validPayload(), false);
@@ -298,7 +298,7 @@ describe('library works with paddle', function () {
 
   it('should make event handlers work after validRequest() without calling validPayload() first', async () => {
     const formBody = new URLSearchParams(validPayload as any).toString();
-    const paddle = initialize('paddle', reqFor('POST', formBody, 'application/x-www-form-urlencoded'));
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', formBody, 'application/x-www-form-urlencoded')));
 
     assert.equal(paddle.validRequest(), true);
     const event = await paddle.onPaymentSucceeded();
@@ -310,7 +310,7 @@ describe('library works with paddle', function () {
 
 describe('provider registry initialization', function () {
   it('dispatches paddle through the provider registry', async () => {
-    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
 
     assert.equal(askriftPd.validRequest(), true);
     assert.equal(askriftPd.validPayload(), true);
@@ -322,20 +322,20 @@ describe('provider registry initialization', function () {
   });
 
   it('supports the existing boolean debug argument for paddle users', () => {
-    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'), true);
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')), true);
 
     assert.equal(askriftPd.validRequest(), true);
   });
 
   it('supports the options object debug argument for paddle users', () => {
-    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'), { debug: true });
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')), { debug: true });
 
     assert.equal(askriftPd.validRequest(), true);
   });
 
   it('throws UnsupportedProviderError for unsupported providers', () => {
     assert.throws(
-      () => initialize('stripe' as any, reqFor('POST', JSON.stringify(validPayload), 'application/json')),
+      () => initialize('stripe' as any, fromVercel(createReq('POST'))),
       UnsupportedProviderError,
       'Unsupported provider: stripe'
     );
@@ -343,7 +343,7 @@ describe('provider registry initialization', function () {
 
   it('throws UnsupportedProviderError for unsupported object prototype keys', () => {
     assert.throws(
-      () => initialize('__proto__' as any, reqFor('POST', JSON.stringify(validPayload), 'application/json')),
+      () => initialize('__proto__' as any, fromVercel(createReq('POST'))),
       UnsupportedProviderError,
       'Unsupported provider: __proto__'
     );
@@ -352,7 +352,7 @@ describe('provider registry initialization', function () {
 
 describe('handle() propagates handler failures', function () {
   it('reports a thrown handler error and returns handled: false', async () => {
-    const askriftPd = initialize('paddle', createReq('POST'));
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
     const boom = new Error('handler exploded');
 
     askriftPd.on('subscription.payment.succeeded', () => {
@@ -370,7 +370,7 @@ describe('handle() propagates handler failures', function () {
   });
 
   it('reports an async rejection and returns handled: false', async () => {
-    const askriftPd = initialize('paddle', createReq('POST'));
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
 
     askriftPd.on('subscription.payment.succeeded', async () => {
       throw new Error('async boom');
@@ -386,7 +386,7 @@ describe('handle() propagates handler failures', function () {
   });
 
   it('returns handled: true and no errors when all handlers succeed', async () => {
-    const askriftPd = initialize('paddle', createReq('POST'));
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
     let called = 0;
 
     askriftPd.on('subscription.payment.succeeded', () => {
@@ -427,5 +427,37 @@ describe('paddle initialization options', function () {
     const askriftFromEnv = initialize('paddle', createReq('POST'));
     assert.equal(askriftFromEnv.validPayload(), true);
     done();
+  });
+});
+
+describe('request adapter falls back to rawBody', function () {
+  it('should use rawBody when body is undefined (string rawBody)', () => {
+    const rawBody = new URLSearchParams(validPayload).toString();
+    const paddle = initialize('paddle', fromVercel({
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      rawBody,
+    }));
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('should use rawBody when body is undefined (Buffer rawBody)', () => {
+    const rawBody = Buffer.from(JSON.stringify(validPayload));
+    const paddle = initialize('paddle', fromVercel({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      rawBody,
+    }));
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('should prefer body over rawBody when body is defined', () => {
+    const paddle = initialize('paddle', fromVercel({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: { ...validPayload },
+      rawBody: 'unused-raw-body',
+    }));
+    assert.equal(paddle.validPayload(), true);
   });
 });

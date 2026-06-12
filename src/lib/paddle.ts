@@ -1,5 +1,3 @@
-import { VercelRequest } from "@vercel/node";
-import { Request } from 'express';
 import * as crypto from "crypto";
 import { serialize } from 'php-serialize';
 import Askrift, { AskriftParsedEvent } from "./askrift";
@@ -16,6 +14,8 @@ import {
   SUBSCRIPTION_EVENT_TYPES,
   SubscriptionEventType,
 } from "../types/events";
+import { fromRaw } from "./request";
+import type { InternalRequest } from "./request";
 import { isObject } from "./utils";
 
 type PaddlePayload = { [k: string]: any };
@@ -139,19 +139,19 @@ export function verifyPaddleSignature(payload: unknown, publicKey: string): bool
 }
 
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
-  private _req;
+  private _req: InternalRequest;
   private _pubKey: string;
   private _parsedBody: PaddlePayload | null | undefined;
   private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
 
-  constructor(req: VercelRequest | Request, options: PaddleOptions | boolean = {}) {
+  constructor(req: InternalRequest, options: PaddleOptions | boolean = {}) {
     const paddleOptions = typeof options === 'boolean' ? { debug: options } : options;
     super(paddleOptions.debug);
 
     const publicKey = paddleOptions.publicKey !== undefined ? paddleOptions.publicKey : process.env.PADDLE_PUBLIC_KEY;
     if (!publicKey) throw new Error("Paddle public key is required (provide via options.publicKey or PADDLE_PUBLIC_KEY environment variable)");
 
-    this._req = req;
+    this._req = fromRaw(req);
     this._pubKey = normalizePublicKey(publicKey);
   }
 
