@@ -6,6 +6,7 @@ import { assert } from 'chai';
 import { verifyPaddleSignature } from '../src/lib/paddle';
 import {
   PaymentStatus,
+  ProviderStatusMetadata,
   SubscriptionStatus,
   mapProviderPaymentStatus,
   mapProviderSubscriptionStatus,
@@ -1104,9 +1105,10 @@ describe('normalized provider statuses', function () {
 
     assert.equal(event?.subscriptionStatus, SubscriptionStatus.Active);
     assert.equal(event?.paymentStatus, PaymentStatus.Paid);
-    assert.equal(event?.provider?.name, 'paddle');
-    assert.equal(event?.provider?.raw.subscriptionStatus, 'active');
-    assert.equal(event?.provider?.raw.paymentStatus, 'subscription_payment_succeeded');
+    const provider = event?.provider as ProviderStatusMetadata | undefined;
+    assert.equal(provider?.name, 'paddle');
+    assert.equal(provider?.raw.subscriptionStatus, 'active');
+    assert.equal(provider?.raw.paymentStatus, 'subscription_payment_succeeded');
     assert.equal(event?.status, Status.Active);
     assert.equal((event?.raw as { alert_name?: string })?.alert_name, 'subscription_payment_succeeded');
   });

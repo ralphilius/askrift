@@ -16,9 +16,8 @@ export {
 
 import type { NormalizedWebhookEvent } from "../../lib/idempotency";
 import type { PaddleClassicAlertBase } from "./classic";
-import { NormalizedEvent } from "../events";
 
-interface Subscription extends Partial<NormalizedEvent> {
+interface Subscription {
   /**
    * The unique identifier for this Paddle webhook alert. Integer value sent as a string.
    */
