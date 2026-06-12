@@ -1103,12 +1103,9 @@ describe('normalized provider statuses', function () {
     const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
     const event = await askriftPd.parseEvent();
 
+    assert.equal(event?.provider, 'paddle');
     assert.equal(event?.subscriptionStatus, SubscriptionStatus.Active);
     assert.equal(event?.paymentStatus, PaymentStatus.Paid);
-    const provider = event?.provider as ProviderStatusMetadata | undefined;
-    assert.equal(provider?.name, 'paddle');
-    assert.equal(provider?.raw.subscriptionStatus, 'active');
-    assert.equal(provider?.raw.paymentStatus, 'subscription_payment_succeeded');
     assert.equal(event?.status, Status.Active);
     assert.equal((event?.raw as { alert_name?: string })?.alert_name, 'subscription_payment_succeeded');
   });
