@@ -4,6 +4,14 @@ import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
 import { verifyPaddleSignature } from '../src/lib/paddle';
+import {
+  PaymentStatus,
+  ProviderStatusMetadata,
+  SubscriptionStatus,
+  mapProviderPaymentStatus,
+  mapProviderSubscriptionStatus,
+} from '../src/types/events';
+import { Status } from '../src/types/paddle/subscription';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -1059,5 +1067,75 @@ describe('paddle-billing and paddle-classic provider entries', function () {
 
     assert.equal(classic.validRequest(), true);
     assert.equal(classic.validPayload(), true);
+  });
+});
+
+describe('normalized provider statuses', function () {
+  it('should map equivalent subscription statuses to the same normalized values', () => {
+    assert.equal(mapProviderSubscriptionStatus('paddle', 'active'), SubscriptionStatus.Active);
+    assert.equal(mapProviderSubscriptionStatus('stripe', 'active'), SubscriptionStatus.Active);
+    assert.equal(mapProviderSubscriptionStatus('gumroad', 'alive'), SubscriptionStatus.Active);
+
+    assert.equal(mapProviderSubscriptionStatus('paddle', 'past_due'), SubscriptionStatus.PastDue);
+    assert.equal(mapProviderSubscriptionStatus('stripe', 'past_due'), SubscriptionStatus.PastDue);
+    assert.equal(mapProviderSubscriptionStatus('gumroad', 'failed_payment'), SubscriptionStatus.PastDue);
+
+    assert.equal(mapProviderSubscriptionStatus('paddle', 'deleted'), SubscriptionStatus.Canceled);
+    assert.equal(mapProviderSubscriptionStatus('stripe', 'canceled'), SubscriptionStatus.Canceled);
+    assert.equal(mapProviderSubscriptionStatus('gumroad', 'cancelled'), SubscriptionStatus.Canceled);
+  });
+
+  it('should map equivalent payment statuses to the same normalized values', () => {
+    assert.equal(mapProviderPaymentStatus('paddle', 'subscription_payment_succeeded'), PaymentStatus.Paid);
+    assert.equal(mapProviderPaymentStatus('stripe', 'succeeded'), PaymentStatus.Paid);
+    assert.equal(mapProviderPaymentStatus('gumroad', 'successful'), PaymentStatus.Paid);
+
+    assert.equal(mapProviderPaymentStatus('paddle', 'subscription_payment_failed'), PaymentStatus.Failed);
+    assert.equal(mapProviderPaymentStatus('stripe', 'payment_failed'), PaymentStatus.Failed);
+    assert.equal(mapProviderPaymentStatus('gumroad', 'failed'), PaymentStatus.Failed);
+
+    assert.equal(mapProviderPaymentStatus('paddle', 'subscription_payment_refunded'), PaymentStatus.Refunded);
+    assert.equal(mapProviderPaymentStatus('stripe', 'charge.refunded'), PaymentStatus.Refunded);
+    assert.equal(mapProviderPaymentStatus('gumroad', 'refunded'), PaymentStatus.Refunded);
+  });
+
+  it('should include normalized and raw provider statuses on paddle events', async () => {
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
+    const event = (await askriftPd.parseEvent()) as any;
+
+    assert.equal(event?.provider, 'paddle');
+    assert.equal(event?.subscriptionStatus, SubscriptionStatus.Active);
+    assert.equal(event?.paymentStatus, PaymentStatus.Paid);
+    assert.equal(event?.status, Status.Active);
+    assert.equal(event?.alert_name, 'subscription_payment_succeeded');
+  });
+
+  it('should map paddle partial refunds to PartiallyRefunded', () => {
+    assert.equal(
+      mapProviderPaymentStatus('paddle', 'subscription_payment_refunded', 'partial'),
+      PaymentStatus.PartiallyRefunded,
+    );
+  });
+
+  it('should not assign payment status to paddle subscription events', async () => {
+    const subscriptionCreatedPayload = { ...payload, alert_name: 'subscription_created', status: 'active' };
+    const subscriptionUpdatedPayload = { ...payload, alert_name: 'subscription_updated', status: 'active' };
+    const subscriptionCancelledPayload = { ...payload, alert_name: 'subscription_cancelled', status: 'deleted' };
+
+    const createdAskrift = initialize('paddle', createReq('POST', signedPayload(subscriptionCreatedPayload)));
+    const updatedAskrift = initialize('paddle', createReq('POST', signedPayload(subscriptionUpdatedPayload)));
+    const cancelledAskrift = initialize('paddle', createReq('POST', signedPayload(subscriptionCancelledPayload)));
+
+    const created = await createdAskrift.parseEvent();
+    const updated = await updatedAskrift.parseEvent();
+    const cancelled = await cancelledAskrift.parseEvent();
+
+    assert.equal(created?.paymentStatus, undefined);
+    assert.equal(updated?.paymentStatus, undefined);
+    assert.equal(cancelled?.paymentStatus, undefined);
+
+    assert.equal(created?.subscriptionStatus, SubscriptionStatus.Active);
+    assert.equal(updated?.subscriptionStatus, SubscriptionStatus.Active);
+    assert.equal(cancelled?.subscriptionStatus, SubscriptionStatus.Canceled);
   });
 });

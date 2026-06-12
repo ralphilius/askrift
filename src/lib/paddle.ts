@@ -22,6 +22,8 @@ import {
   NormalizedSubscriptionEvent,
   SUBSCRIPTION_EVENT_TYPES,
   SubscriptionEventType,
+  createProviderStatusMetadata,
+  NormalizedEvent,
 } from "../types/events";
 import { fromRaw } from "./request";
 import type { InternalRequest } from "./request";
@@ -122,6 +124,16 @@ function parseBody(body: any): PaddlePayload | null {
 
     return Object.keys(payload).length > 0 ? payload : null;
   }
+}
+
+function normalizePaddlePayload(payload: PaddlePayload): NormalizedEvent {
+  return createProviderStatusMetadata("paddle", {
+    subscriptionStatus: typeof payload.status === "string" ? payload.status : undefined,
+    previousSubscriptionStatus: typeof payload.old_status === "string" ? payload.old_status : undefined,
+    paymentStatus: typeof payload.alert_name === "string" ? payload.alert_name : undefined,
+    eventName: typeof payload.alert_name === "string" ? payload.alert_name : undefined,
+    refundType: typeof payload.refund_type === "string" ? payload.refund_type : undefined,
+  });
 }
 
 function getRawBody(req: InternalRequest): string | null {
@@ -398,9 +410,11 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     if (!type) return null;
 
     const normalizedRaw = normalizeWebhookEvent('paddle', body) as PaddlePayload & NormalizedWebhookEvent;
+    const metadata = normalizePaddlePayload(body);
     const base = {
+      ...body,
+      ...metadata,
       type,
-      provider: 'paddle',
       raw: normalizedRaw,
       eventId: body.alert_id,
       occurredAt: toDate(body.event_time),
@@ -410,7 +424,8 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       customerEmail: body.email,
       currency: body.currency,
       status: body.status,
-    } as NormalizedSubscriptionEvent;
+      provider: 'paddle',
+    } as unknown as NormalizedSubscriptionEvent;
 
     let result: NormalizedSubscriptionEvent;
     switch (type) {
