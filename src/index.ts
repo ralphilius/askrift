@@ -5,6 +5,7 @@ import Paddle from "./lib/paddle";
 
 export default Askrift;
 export { Paddle };
+export { verifyPaddleSignature } from "./lib/paddle";
 export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
 export * from "./types/events";
 export type { PaddleSubscriptionEvents } from "./lib/paddle";
