@@ -31,6 +31,7 @@ export interface GumroadWebhookPayload {
 export type GumroadSubscriptionCreated = NormalizedEvent<GumroadWebhookPayload>;
 export type GumroadSubscriptionUpdated = NormalizedEvent<GumroadWebhookPayload>;
 export type GumroadSubscriptionCancelled = NormalizedEvent<GumroadWebhookPayload>;
+export type GumroadSubscriptionPaused = NormalizedEvent<GumroadWebhookPayload>;
 export type GumroadPaymentSucceeded = NormalizedEvent<GumroadWebhookPayload>;
 export type GumroadPaymentFailed = NormalizedEvent<GumroadWebhookPayload>;
 export type GumroadPaymentRefunded = NormalizedEvent<GumroadWebhookPayload>;

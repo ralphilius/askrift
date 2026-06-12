@@ -12,6 +12,7 @@ export interface LemonSqueezyWebhookPayload {
     attributes?: {
       customer_id?: number | string;
       customer_email?: string;
+      user_email?: string;
       order_id?: number | string;
       product_id?: number | string;
       variant_id?: number | string;
@@ -30,6 +31,7 @@ export interface LemonSqueezyWebhookPayload {
 export type LemonSqueezySubscriptionCreated = NormalizedEvent<LemonSqueezyWebhookPayload>;
 export type LemonSqueezySubscriptionUpdated = NormalizedEvent<LemonSqueezyWebhookPayload>;
 export type LemonSqueezySubscriptionCancelled = NormalizedEvent<LemonSqueezyWebhookPayload>;
+export type LemonSqueezySubscriptionPaused = NormalizedEvent<LemonSqueezyWebhookPayload>;
 export type LemonSqueezyPaymentSucceeded = NormalizedEvent<LemonSqueezyWebhookPayload>;
 export type LemonSqueezyPaymentFailed = NormalizedEvent<LemonSqueezyWebhookPayload>;
 export type LemonSqueezyPaymentRefunded = NormalizedEvent<LemonSqueezyWebhookPayload>;

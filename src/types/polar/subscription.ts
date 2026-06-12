@@ -25,6 +25,7 @@ export interface PolarWebhookPayload {
 export type PolarSubscriptionCreated = NormalizedEvent<PolarWebhookPayload>;
 export type PolarSubscriptionUpdated = NormalizedEvent<PolarWebhookPayload>;
 export type PolarSubscriptionCancelled = NormalizedEvent<PolarWebhookPayload>;
+export type PolarSubscriptionPaused = NormalizedEvent<PolarWebhookPayload>;
 export type PolarPaymentSucceeded = NormalizedEvent<PolarWebhookPayload>;
 export type PolarPaymentFailed = NormalizedEvent<PolarWebhookPayload>;
 export type PolarPaymentRefunded = NormalizedEvent<PolarWebhookPayload>;
