@@ -1,4 +1,4 @@
-import Askrift, { initialize, UnsupportedProviderError } from '../src';
+import { initialize, Paddle, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
@@ -8,12 +8,16 @@ const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
 });
 
-process.env.PADDLE_PUBLIC_KEY = publicKey
+const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
+
+const PUBLIC_KEY_BODY = publicKey
   .export({ type: 'spki', format: 'pem' })
   .toString()
   .replace('-----BEGIN PUBLIC KEY-----', '')
   .replace('-----END PUBLIC KEY-----', '')
   .replace(/\s+/g, '');
+
+process.env.PADDLE_PUBLIC_KEY = PUBLIC_KEY_BODY;
 
 const baseReq: any = {
   query: {},
@@ -122,9 +126,18 @@ const urlEncodedReq = {
 };
 
 describe('library works with paddle', function () {
-  let askriftPd: Askrift<'paddle'>;
-  let askriftBadPd: Askrift<'paddle'>;
-  let askriftUrlEncodedPd: Askrift<'paddle'>;
+  const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
+  let askriftPd: Paddle;
+  let askriftBadPd: Paddle;
+  let askriftUrlEncodedPd: Paddle;
+
+  after(() => {
+    if (previousPublicKey === undefined) {
+      delete process.env.PADDLE_PUBLIC_KEY;
+    } else {
+      process.env.PADDLE_PUBLIC_KEY = previousPublicKey;
+    }
+  });
 
   it('should initalize successfully', (done) => {
     askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
@@ -385,5 +398,34 @@ describe('handle() propagates handler failures', function () {
     assert.equal(called, 1);
     assert.equal(result.handled, true);
     assert.isUndefined(result.errors);
+  });
+});
+
+describe('paddle initialization options', function () {
+  const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
+
+  after(() => {
+    if (previousPublicKey === undefined) {
+      delete process.env.PADDLE_PUBLIC_KEY;
+    } else {
+      process.env.PADDLE_PUBLIC_KEY = previousPublicKey;
+    }
+  });
+
+  it('should initalize successfully with explicit config', (done) => {
+    delete process.env.PADDLE_PUBLIC_KEY;
+    const askriftPd = initialize('paddle', createReq('POST'), { publicKey: PUBLIC_KEY_BODY });
+    const askriftBadPd = initialize('paddle', createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' })), { publicKey: PUBLIC_KEY_BODY });
+    assert.equal(askriftPd.validRequest(), true);
+    assert.equal(askriftPd.validPayload(), true);
+    assert.equal(askriftBadPd.validPayload(), false);
+    done();
+  });
+
+  it('should initalize successfully from PADDLE_PUBLIC_KEY env fallback', (done) => {
+    process.env.PADDLE_PUBLIC_KEY = PUBLIC_KEY_BODY;
+    const askriftFromEnv = initialize('paddle', createReq('POST'));
+    assert.equal(askriftFromEnv.validPayload(), true);
+    done();
   });
 });

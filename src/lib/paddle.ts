@@ -20,6 +20,25 @@ import { isObject } from "./utils";
 
 type PaddlePayload = { [k: string]: any };
 
+export type PaddleOptions = {
+  /** Paddle public key, with or without PEM headers. Falls back to PADDLE_PUBLIC_KEY. */
+  publicKey?: string;
+  /** Enable debug logging. */
+  debug?: boolean;
+};
+
+function normalizePublicKey(publicKey: string): string {
+  if (!publicKey || !publicKey.trim()) {
+    throw new Error("Public key cannot be empty");
+  }
+  const normalized = publicKey.replace(/\\n/g, '\n');
+  if (normalized.includes('-----BEGIN PUBLIC KEY-----')) {
+    return normalized;
+  }
+
+  return `-----BEGIN PUBLIC KEY-----\n${normalized}\n-----END PUBLIC KEY-----`;
+}
+
 export type PaddleSubscriptionEvents = {
   [SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated]: SubscriptionCreated;
   [SUBSCRIPTION_EVENT_TYPES.SubscriptionUpdated]: SubscriptionUpdated;
@@ -125,11 +144,15 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _parsedBody: PaddlePayload | null | undefined;
   private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
 
-  constructor(req: VercelRequest | Request, debugged?: boolean) {
-    super(debugged);
-    if (!process.env.PADDLE_PUBLIC_KEY) throw new Error("PADDLE_PUBLIC_KEY is required");
+  constructor(req: VercelRequest | Request, options: PaddleOptions | boolean = {}) {
+    const paddleOptions = typeof options === 'boolean' ? { debug: options } : options;
+    super(paddleOptions.debug);
+
+    const publicKey = paddleOptions.publicKey !== undefined ? paddleOptions.publicKey : process.env.PADDLE_PUBLIC_KEY;
+    if (!publicKey) throw new Error("Paddle public key is required (provide via options.publicKey or PADDLE_PUBLIC_KEY environment variable)");
+
     this._req = req;
-    this._pubKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY?.replace(/\\n/g, '\n')}\n-----END PUBLIC KEY-----`;
+    this._pubKey = normalizePublicKey(publicKey);
   }
 
   onSubscriptionCreated(): Promise<SubscriptionCreated | null> {
