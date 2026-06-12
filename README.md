@@ -443,12 +443,9 @@ Next.js route handlers expose a Web `Request`, while Áskrift expects an Express
 import { initialize } from '@ralphilius/askrift';
 
 export async function POST(request: Request) {
-  const contentType = request.headers.get('content-type') || '';
+  const contentType = request.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
 
-  if (
-    contentType !== 'application/x-www-form-urlencoded' &&
-    !contentType.startsWith('multipart/form-data')
-  ) {
+  if (contentType !== 'application/x-www-form-urlencoded') {
     return new Response('Unsupported Media Type', { status: 415 });
   }
 
