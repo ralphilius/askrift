@@ -131,6 +131,8 @@ export interface NormalizedEvent {
   subscriptionStatus?: SubscriptionStatus;
   previousSubscriptionStatus?: SubscriptionStatus;
   paymentStatus?: PaymentStatus;
+  eventName?: string;
+  refundType?: string;
   provider: ProviderStatusMetadata;
 }
 
@@ -246,14 +248,22 @@ function mapPaddlePaymentStatus(status: string, refundType?: string): PaymentSta
     case "payment_succeeded":
     case "paid":
     case "succeeded":
+    case "transaction.paid":
+    case "transaction.payment_succeeded":
+    case "transaction.completed":
+    case "order.paid":
       return PaymentStatus.Paid;
     case "subscription_payment_failed":
     case "payment_failed":
     case "failed":
+    case "transaction.failed":
+    case "transaction.payment_failed":
       return PaymentStatus.Failed;
     case "subscription_payment_refunded":
     case "payment_refunded":
     case "refunded":
+    case "transaction.refunded":
+    case "order.refunded":
       if (refundType === "partial") {
         return PaymentStatus.PartiallyRefunded;
       }

@@ -410,9 +410,8 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     if (!type) return null;
 
     const normalizedRaw = normalizeWebhookEvent('paddle', body) as PaddlePayload & NormalizedWebhookEvent;
-    const normalized = normalizePaddlePayload(body);
+    const metadata = normalizePaddlePayload(body);
     const base = {
-      ...normalized,
       type,
       raw: normalizedRaw,
       eventId: body.alert_id,
@@ -423,7 +422,13 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       customerEmail: body.email,
       currency: body.currency,
       status: body.status,
-    } as NormalizedSubscriptionEvent;
+      provider: 'paddle',
+      subscriptionStatus: metadata.subscriptionStatus,
+      previousSubscriptionStatus: metadata.previousSubscriptionStatus,
+      paymentStatus: metadata.paymentStatus,
+      eventName: metadata.eventName,
+      refundType: metadata.refundType,
+    } as unknown as NormalizedSubscriptionEvent;
 
     let result: NormalizedSubscriptionEvent;
     switch (type) {
@@ -592,8 +597,8 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   }
 
   private async getNormalizedProviderEvent<T>(type: SubscriptionEventType): Promise<(T & NormalizedWebhookEvent) | null> {
-    const event = await this.parseEvent();
+    const event = this.toNormalizedEvent();
     if (event?.type !== type) return null;
-    return (event.raw ?? null) as (T & NormalizedWebhookEvent) | null;
+    return event as unknown as (T & NormalizedWebhookEvent) | null;
   }
 }
