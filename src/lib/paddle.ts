@@ -368,6 +368,10 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     return isEventFresh('paddle', parseBody(this._req.body), options);
   }
 
+  verify(): boolean {
+    return this.validPayload();
+  }
+
   validPayload(options?: EventTimestampValidationOptions): boolean {
     if (!this.verify()) return false;
     if (!options) return true;
@@ -490,6 +494,9 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       throw new Error("Could not parse webhook body");
     }
     const result = this.verify() ? this.toNormalizedEvent() : null;
+    if (result?.raw) {
+      normalizeWebhookEvent('paddle', result.raw as PaddlePayload);
+    }
     this._parsedEventPromise = Promise.resolve(result);
     return this._parsedEventPromise;
   }

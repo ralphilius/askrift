@@ -1,4 +1,4 @@
-import Askrift, { initialize, fromVercel, Paddle, UnsupportedProviderError, extractStableEventId } from '../src';
+import Askrift, { initialize, fromVercel, UnsupportedProviderError, extractStableEventId, Paddle } from '../src';
 import { paddlePaymentSucceededPayload, paddlePaymentSucceededDuplicatePayload, paddleStalePaymentSucceededPayload } from './fixtures/paddle';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
@@ -28,6 +28,8 @@ const baseReq: any = {
     'content-type': 'application/x-www-form-urlencoded'
   },
 };
+
+const paddlePublicKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
 
 const payload = paddlePaymentSucceededPayload;
 
