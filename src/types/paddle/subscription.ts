@@ -13,3 +13,8 @@ export {
   PaddleClassicRefundType as RefundType,
   PaddleClassicSubscriptionStatus as Status,
 } from "./classic";
+
+import type { NormalizedWebhookEvent } from "../../lib/idempotency";
+import type { PaddleClassicAlertBase } from "./classic";
+
+export interface NormalizedSubscription extends PaddleClassicAlertBase, NormalizedWebhookEvent {}

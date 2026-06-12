@@ -10,6 +10,5 @@ export const paddlePaymentSucceededDuplicatePayload = {
 
 export const paddleStalePaymentSucceededPayload = {
   ...paddlePaymentSucceededPayload,
-  "alert_id": "120661189",
   "event_time": "2021-01-01 00:00:00",
 };

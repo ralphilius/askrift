@@ -62,7 +62,7 @@ export function extractStableEventId(provider: WebhookProvider, payload: unknown
 
   for (const field of PROVIDER_CONFIG[provider].idFields) {
     const value = parsedPayload[field];
-    if (typeof value === 'string' && value.trim() !== '') return value;
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
     if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   }
 
@@ -87,7 +87,7 @@ export function isEventFresh(
   payload: unknown,
   options: EventTimestampValidationOptions,
 ): boolean | null {
-  if (options.maxAgeMs < 0) return false;
+  if (options.maxAgeMs < 0) throw new Error("maxAgeMs must be non-negative");
 
   const toleranceMs = options.toleranceMs ?? 5 * 60 * 1000;
   if (toleranceMs < 0) throw new Error("toleranceMs must be non-negative");

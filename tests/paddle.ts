@@ -204,6 +204,60 @@ describe('library works with paddle', function () {
     assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
   });
 
+  it('should throw when maxAgeMs is negative', () => {
+    assert.throws(
+      () => askriftPd.validPayload({ maxAgeMs: -1 }),
+      Error,
+      'maxAgeMs must be non-negative'
+    );
+  });
+
+  it('should reject payloads with missing timestamps when max age is provided', () => {
+    const noTimestampPayload = { ...validPayloadWithoutSignature };
+    delete (noTimestampPayload as { event_time?: string }).event_time;
+    const signed = signPayload(noTimestampPayload);
+    const body = { ...noTimestampPayload, p_signature: signed };
+    const paddle = initialize('paddle', reqFor('POST', body, 'application/json'));
+
+    assert.equal(paddle.validPayload(), true);
+    assert.equal(paddle.validPayload({ maxAgeMs: 60 * 1000 }), false);
+  });
+
+  it('should clear parsed body when stale payload is rejected', () => {
+    const paddle = initialize('paddle', staleReq);
+    assert.equal(paddle.validPayload({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), false);
+    assert.isNull(paddle.getEventType());
+  });
+
+  it('should expose helpers on parseEvent() results', async () => {
+    const event = await askriftPd.parseEvent();
+    assert.isNotNull(event);
+    assert.equal(event?.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(event?.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+    assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
+  });
+
+  it('should expose helpers on handle() payloads', async () => {
+    const paddle = initialize('paddle', createReq('POST'));
+    let received: any = null;
+    paddle.on('subscription.payment.succeeded', (payload) => {
+      received = payload;
+    });
+
+    const result = await paddle.handle();
+    assert.equal(result.handled, true);
+    assert.isNotNull(received);
+    assert.equal(typeof received.getIdempotencyKey, 'function');
+    assert.equal(received.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(typeof received.getEventTimestamp, 'function');
+    assert.equal(received.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+  });
+
+  it('should trim whitespace-padded event IDs', () => {
+    const padded = { ...paddlePaymentSucceededPayload, alert_id: '  120661188  ' };
+    assert.equal(extractStableEventId('paddle', padded), '120661188');
+  });
+
   it('should not pass invalid request', (done) => {
     assert.equal(askriftBadPd.validRequest(), false);
     done();
