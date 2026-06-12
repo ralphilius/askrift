@@ -4,7 +4,6 @@ import {
   SUBSCRIPTION_EVENT_TYPES,
   SubscriptionEventType,
 } from "../types/events";
-import type { EventTimestampValidationOptions } from "./idempotency";
 
 type ProviderEventMap = Partial<Record<SubscriptionEventType, unknown>>;
 

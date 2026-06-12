@@ -229,21 +229,6 @@ export function verifyPaddleSignature(payload: unknown, publicKey: string): bool
   }
 }
 
-function promisify<T>(obj: any, key: string): Promise<T | null> {
-  return new Promise<T | null>((resolve, reject) => {
-    const payload = parseBody(obj);
-    if (payload) {
-      if (payload['alert_name'] == key) {
-        resolve(normalizeWebhookEvent('paddle', payload) as unknown as T);
-      } else {
-        resolve(null)
-      }
-    } else {
-      reject("Invalid body")
-    }
-  });
-}
-
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req: InternalRequest;
   private _pubKey: string;
