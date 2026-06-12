@@ -25,8 +25,14 @@ provider event, and invokes matching handlers. It returns a structured result:
   verified: boolean;
   handled: boolean;
   eventType?: string;
+  errors?: Error[];
 }
 ```
+
+`handled` is `true` only when at least one matching handler was invoked AND none
+of them threw. If any registered handler rejects, `handle()` catches the error,
+records it in `result.errors`, and returns `handled: false` so callers can map
+that to a 5xx response (instead of silently acknowledging a failed side effect).
 
 Event handlers receive the parsed payload and a context object that includes the
 normalized event name, the provider-specific event name, and the matched handler
