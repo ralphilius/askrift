@@ -15,7 +15,7 @@ import {
 const EVENT_MAP = {
   created: ['subscription_created'],
   updated: ['subscription_updated', 'subscription_resumed', 'subscription_unpaused'],
-  canceled: ['subscription_cancelled', 'subscription_expired'],
+  canceled: ['subscription_expired'],
   paused: ['subscription_paused'],
   paymentSucceeded: ['subscription_payment_success'],
   paymentFailed: ['subscription_payment_failed'],
@@ -87,6 +87,7 @@ export default class LemonSqueezy extends Askrift<'lemon-squeezy'> {
   }
   validPayload(): boolean {
     const signature = getHeader(this._req.headers, 'x-signature');
+    if (!signature) return false;
     const expected = hmacSha256Hex(this._secret, getRawBody(this._req));
     return timingSafeEqualString(signature, expected);
   }

@@ -17,7 +17,7 @@ const POLAR_TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
 const EVENT_MAP = {
   created: ['subscription.created'],
   updated: ['subscription.updated', 'subscription.uncanceled', 'subscription.active'],
-  canceled: ['subscription.canceled', 'subscription.revoked'],
+  canceled: ['subscription.revoked'],
   paymentSucceeded: ['order.paid'],
   paymentFailed: ['subscription.past_due'],
   paymentRefunded: ['order.refunded', 'refund.created', 'refund.updated'],
@@ -35,7 +35,13 @@ function normalize(payload: PolarWebhookPayload, type: any) {
     customerId: data.customer_id || data.customer?.id || null,
     customerEmail: data.customer?.email || null,
     productId: data.product_id || null,
-    amount: typeof data.amount === 'number' ? data.amount : (typeof data.total_amount === 'number' ? data.total_amount : null),
+    amount: typeof data.amount === 'number'
+      ? data.amount
+      : typeof data.refunded_amount === 'number'
+        ? data.refunded_amount
+        : typeof data.total_amount === 'number'
+          ? data.total_amount
+          : null,
     currency: data.currency || null,
     occurredAt: data.created_at || data.modified_at || null,
     raw: payload,

@@ -52,7 +52,7 @@ describe('provider lifecycle fixtures', function () {
     refundReq.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, refundReq.rawBody);
     assert.equal((await initialize('gumroad', refundReq).onPaymentRefunded())?.type, 'payment.refunded');
 
-    const canceledReq = jsonReq({ ...saleBody, resource_name: 'cancellation' });
+    const canceledReq = jsonReq({ ...saleBody, resource_name: 'subscription_ended' });
     canceledReq.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, canceledReq.rawBody);
     assert.equal((await initialize('gumroad', canceledReq).onSubscriptionCanceled())?.type, 'subscription.canceled');
   });
@@ -83,7 +83,7 @@ describe('provider lifecycle fixtures', function () {
 
     for (const [eventName, handler, expectedType] of [
       ['subscription_updated', 'onSubscriptionUpdated', 'subscription.updated'],
-      ['subscription_cancelled', 'onSubscriptionCanceled', 'subscription.canceled'],
+      ['subscription_expired', 'onSubscriptionCanceled', 'subscription.canceled'],
       ['subscription_payment_success', 'onPaymentSucceeded', 'payment.succeeded'],
       ['subscription_payment_failed', 'onPaymentFailed', 'payment.failed'],
       ['order_refunded', 'onPaymentRefunded', 'payment.refunded'],
@@ -119,7 +119,7 @@ describe('provider lifecycle fixtures', function () {
 
     for (const [eventType, handler, expectedType] of [
       ['subscription.updated', 'onSubscriptionUpdated', 'subscription.updated'],
-      ['subscription.canceled', 'onSubscriptionCanceled', 'subscription.canceled'],
+      ['subscription.revoked', 'onSubscriptionCanceled', 'subscription.canceled'],
       ['order.paid', 'onPaymentSucceeded', 'payment.succeeded'],
       ['subscription.past_due', 'onPaymentFailed', 'payment.failed'],
       ['order.refunded', 'onPaymentRefunded', 'payment.refunded'],

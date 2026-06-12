@@ -15,7 +15,7 @@ import {
 const EVENT_MAP = {
   created: ['sale'],
   updated: ['subscription_updated', 'subscription_restarted'],
-  canceled: ['cancellation', 'subscription_ended'],
+  canceled: ['subscription_ended'],
   paymentSucceeded: ['sale'],
   paymentFailed: ['dispute'],
   paymentRefunded: ['refund', 'dispute_won'],
