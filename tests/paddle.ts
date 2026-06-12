@@ -237,6 +237,20 @@ describe('library works with paddle', function () {
     assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
   });
 
+  it('should expose helpers when using validPayload() then toNormalizedEvent() directly', () => {
+    const paddle = initialize('paddle', createReq('POST'));
+    assert.equal(paddle.validPayload(), true);
+
+    const event = paddle.toNormalizedEvent();
+    assert.isNotNull(event);
+    assert.equal(typeof event?.getIdempotencyKey, 'function');
+    assert.equal(event?.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(typeof event?.getEventTimestamp, 'function');
+    assert.equal(event?.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+    assert.equal(typeof event?.isFresh, 'function');
+    assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
+  });
+
   it('should expose helpers on handle() payloads', async () => {
     const paddle = initialize('paddle', createReq('POST'));
     let received: any = null;

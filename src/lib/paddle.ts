@@ -2,7 +2,6 @@ import * as crypto from "crypto";
 import { serialize } from 'php-serialize';
 import Askrift, { AskriftParsedEvent } from "./askrift";
 import {
-  NormalizedSubscription,
   SubscriptionCancelled,
   SubscriptionCreated,
   SubscriptionPaymentFailed,
@@ -265,27 +264,27 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     this._expectedProviderKind = paddleOptions.kind || null;
   }
 
-  onSubscriptionCreated(): Promise<NormalizedSubscription | null> {
+  onSubscriptionCreated(): Promise<(SubscriptionCreated & NormalizedWebhookEvent) | null> {
     return this.getNormalizedProviderEvent(SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated);
   }
 
-  onSubscriptionCanceled(): Promise<NormalizedSubscription | null> {
+  onSubscriptionCanceled(): Promise<(SubscriptionCancelled & NormalizedWebhookEvent) | null> {
     return this.getNormalizedProviderEvent(SUBSCRIPTION_EVENT_TYPES.SubscriptionCancelled);
   }
 
-  onSubscriptionUpdated(): Promise<NormalizedSubscription | null> {
+  onSubscriptionUpdated(): Promise<(SubscriptionUpdated & NormalizedWebhookEvent) | null> {
     return this.getNormalizedProviderEvent(SUBSCRIPTION_EVENT_TYPES.SubscriptionUpdated);
   }
 
-  onPaymentSucceeded(): Promise<NormalizedSubscription | null> {
+  onPaymentSucceeded(): Promise<(SubscriptionPaymentSucceeded & NormalizedWebhookEvent) | null> {
     return this.getNormalizedProviderEvent(SUBSCRIPTION_EVENT_TYPES.PaymentSucceeded);
   }
 
-  onPaymentFailed(): Promise<NormalizedSubscription | null> {
+  onPaymentFailed(): Promise<(SubscriptionPaymentFailed & NormalizedWebhookEvent) | null> {
     return this.getNormalizedProviderEvent(SUBSCRIPTION_EVENT_TYPES.PaymentFailed);
   }
 
-  onPaymentRefunded(): Promise<NormalizedSubscription | null> {
+  onPaymentRefunded(): Promise<(SubscriptionPaymentRefunded & NormalizedWebhookEvent) | null> {
     return this.getNormalizedProviderEvent(SUBSCRIPTION_EVENT_TYPES.PaymentRefunded);
   }
 
@@ -453,10 +452,11 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     const type = this.getEventType();
     if (!type) return null;
 
+    const normalizedRaw = normalizeWebhookEvent('paddle', body) as PaddlePayload & NormalizedWebhookEvent;
     const base = {
       type,
       provider: 'paddle',
-      raw: body,
+      raw: normalizedRaw,
       eventId: body.alert_id,
       occurredAt: toDate(body.event_time),
       subscriptionId: body.subscription_id,
@@ -467,29 +467,33 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       status: body.status,
     } as NormalizedSubscriptionEvent;
 
+    let result: NormalizedSubscriptionEvent;
     switch (type) {
       case SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated:
-        return {
+        result = {
           ...base,
           type,
           nextBillDate: toDate(body.next_bill_date),
         };
+        break;
       case SUBSCRIPTION_EVENT_TYPES.SubscriptionUpdated:
-        return {
+        result = {
           ...base,
           type,
           nextBillDate: toDate(body.next_bill_date),
           previousStatus: body.old_status,
           previousSubscriptionPlanId: body.old_subscription_plan_id,
         };
+        break;
       case SUBSCRIPTION_EVENT_TYPES.SubscriptionCancelled:
-        return {
+        result = {
           ...base,
           type,
           cancellationEffectiveDate: toDate(body.cancellation_effective_date),
         };
+        break;
       case SUBSCRIPTION_EVENT_TYPES.PaymentSucceeded:
-        return {
+        result = {
           ...base,
           type,
           paymentId: body.subscription_payment_id,
@@ -498,8 +502,9 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
           nextBillDate: toDate(body.next_bill_date),
           receiptUrl: body.receipt_url,
         };
+        break;
       case SUBSCRIPTION_EVENT_TYPES.PaymentFailed:
-        return {
+        result = {
           ...base,
           type,
           paymentId: body.subscription_payment_id,
@@ -508,8 +513,9 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
           nextRetryDate: toDate(body.next_retry_date),
           attemptNumber: body.attempt_number,
         };
+        break;
       case SUBSCRIPTION_EVENT_TYPES.PaymentRefunded:
-        return {
+        result = {
           ...base,
           type,
           paymentId: body.subscription_payment_id,
@@ -518,9 +524,30 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
           refundType: body.refund_type,
           refundReason: body.refund_reason,
         };
+        break;
       default:
         return null;
     }
+
+    Object.defineProperties(result, {
+      getIdempotencyKey: {
+        configurable: true,
+        enumerable: false,
+        value: () => normalizedRaw.getIdempotencyKey(),
+      },
+      getEventTimestamp: {
+        configurable: true,
+        enumerable: false,
+        value: () => normalizedRaw.getEventTimestamp(),
+      },
+      isFresh: {
+        configurable: true,
+        enumerable: false,
+        value: (options: EventTimestampValidationOptions) => normalizedRaw.isFresh(options),
+      },
+    });
+
+    return result;
   }
 
   async parseEvent(): Promise<NormalizedSubscriptionEvent | null> {
@@ -531,27 +558,6 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       throw new Error("Could not parse webhook body");
     }
     const result = this.verify() ? this.toNormalizedEvent() : null;
-    if (result?.raw) {
-      const normalizedRaw = normalizeWebhookEvent('paddle', result.raw as PaddlePayload) as PaddlePayload & NormalizedWebhookEvent;
-      result.raw = normalizedRaw;
-      Object.defineProperties(result, {
-        getIdempotencyKey: {
-          configurable: true,
-          enumerable: false,
-          value: () => normalizedRaw.getIdempotencyKey(),
-        },
-        getEventTimestamp: {
-          configurable: true,
-          enumerable: false,
-          value: () => normalizedRaw.getEventTimestamp(),
-        },
-        isFresh: {
-          configurable: true,
-          enumerable: false,
-          value: (options: EventTimestampValidationOptions) => normalizedRaw.isFresh(options),
-        },
-      });
-    }
     this._parsedEventPromise = Promise.resolve(result);
     return this._parsedEventPromise;
   }
@@ -639,9 +645,9 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     return event as PaddleBillingTransactionEvent;
   }
 
-  private async getNormalizedProviderEvent(type: SubscriptionEventType): Promise<NormalizedSubscription | null> {
+  private async getNormalizedProviderEvent<T>(type: SubscriptionEventType): Promise<(T & NormalizedWebhookEvent) | null> {
     const event = await this.parseEvent();
     if (event?.type !== type) return null;
-    return (event.raw ?? null) as NormalizedSubscription | null;
+    return (event.raw ?? null) as (T & NormalizedWebhookEvent) | null;
   }
 }
