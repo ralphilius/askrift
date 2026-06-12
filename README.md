@@ -63,7 +63,7 @@ app.post('/webhooks/paddle', express.urlencoded({ extended: false }), async (req
   const result = await askrift.handle();
 
   if (!result.verified) return res.status(403).json(result);
-  if (!result.handled) return res.status(202).json(result);
+  if (!result.handled) return res.status(500).json(result);
 
   return res.status(200).json(result);
 });
