@@ -1,4 +1,4 @@
-import { initialize, Paddle, UnsupportedProviderError } from '../src';
+import Askrift, { initialize, fromVercel, Paddle, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
@@ -140,9 +140,9 @@ describe('library works with paddle', function () {
   });
 
   it('should initalize successfully', (done) => {
-    askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
-    askriftBadPd = initialize('paddle', reqFor('GET', JSON.stringify(invalidPayload), 'application/json'));
-    askriftUrlEncodedPd = initialize('paddle', urlEncodedReq);
+    askriftPd = initialize('paddle', fromVercel(createReq('POST')));
+    askriftBadPd = initialize('paddle', fromVercel(createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' }))));
+    askriftUrlEncodedPd = initialize('paddle', fromVercel(urlEncodedReq));
     done();
   });
 
@@ -310,7 +310,7 @@ describe('library works with paddle', function () {
 
 describe('provider registry initialization', function () {
   it('dispatches paddle through the provider registry', async () => {
-    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'));
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
 
     assert.equal(askriftPd.validRequest(), true);
     assert.equal(askriftPd.validPayload(), true);
@@ -322,20 +322,20 @@ describe('provider registry initialization', function () {
   });
 
   it('supports the existing boolean debug argument for paddle users', () => {
-    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'), true);
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')), true);
 
     assert.equal(askriftPd.validRequest(), true);
   });
 
   it('supports the options object debug argument for paddle users', () => {
-    const askriftPd = initialize('paddle', reqFor('POST', JSON.stringify(validPayload), 'application/json'), { debug: true });
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')), { debug: true });
 
     assert.equal(askriftPd.validRequest(), true);
   });
 
   it('throws UnsupportedProviderError for unsupported providers', () => {
     assert.throws(
-      () => initialize('stripe' as any, reqFor('POST', JSON.stringify(validPayload), 'application/json')),
+      () => initialize('stripe' as any, fromVercel(createReq('POST'))),
       UnsupportedProviderError,
       'Unsupported provider: stripe'
     );
@@ -343,7 +343,7 @@ describe('provider registry initialization', function () {
 
   it('throws UnsupportedProviderError for unsupported object prototype keys', () => {
     assert.throws(
-      () => initialize('__proto__' as any, reqFor('POST', JSON.stringify(validPayload), 'application/json')),
+      () => initialize('__proto__' as any, fromVercel(createReq('POST'))),
       UnsupportedProviderError,
       'Unsupported provider: __proto__'
     );
