@@ -19,8 +19,18 @@ const EVENT_MAP = {
   paymentSucceeded: ['sale'],
   paymentFailed: ['dispute'],
   paymentRefunded: ['refund'],
-  disputeWon: ['dispute_won'],
 };
+
+function isTruthyRecurring(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === '') return false;
+    return true;
+  }
+  return false;
+}
 
 function normalize(payload: GumroadWebhookPayload, type: any) {
   return {
@@ -43,7 +53,7 @@ function promisify<T>(req: any, eventNames: string[], type: any, requireSubscrip
     try {
       const payload = parseBody<GumroadWebhookPayload>(req);
       const resource: string | undefined = payload.resource_name || getHeader(req.headers, 'x-gumroad-resource-name');
-      const isRecurring = Boolean((payload as any).recurring);
+      const isRecurring = isTruthyRecurring(payload.recurring);
       const matches = !!resource && eventNames.includes(resource) && (!requireSubscription || Boolean(payload.subscription_id)) && (!requireNonRecurring || !isRecurring);
       resolve(matches ? normalize(payload, type) as unknown as T : null);
     } catch (error) {
