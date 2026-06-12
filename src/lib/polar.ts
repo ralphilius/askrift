@@ -105,11 +105,10 @@ export default class Polar extends Askrift<'polar'> {
     const nowSeconds = Math.floor(Date.now() / 1000);
     if (Math.abs(nowSeconds - timestampSeconds) > POLAR_TIMESTAMP_TOLERANCE_SECONDS) return false;
     const signed = `${id}.${timestamp}.${getRawBody(this._req)}`;
-    const possibleSecrets: (string | Buffer)[] = [this._secret];
-    if (this._secret.startsWith('whsec_')) {
-      possibleSecrets.push(Buffer.from(this._secret.slice(6), 'base64'));
-    }
+    const secret = this._secret.startsWith('whsec_')
+      ? Buffer.from(this._secret.slice(6), 'base64')
+      : Buffer.from(this._secret, 'utf8');
     const signatures = signatureHeader.split(' ').map((signature) => signature.replace(/^v1,/, ''));
-    return possibleSecrets.some((secret) => signatures.some((signature) => timingSafeEqualString(signature, hmacSha256Base64(secret, signed))));
+    return signatures.some((signature) => timingSafeEqualString(signature, hmacSha256Base64(secret, signed)));
   }
 }

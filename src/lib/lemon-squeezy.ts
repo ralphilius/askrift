@@ -18,7 +18,7 @@ const EVENT_MAP = {
   updated: ['subscription_updated', 'subscription_resumed', 'subscription_unpaused'],
   canceled: ['subscription_expired'],
   paused: ['subscription_paused'],
-  paymentSucceeded: ['subscription_payment_success'],
+  paymentSucceeded: ['subscription_payment_success', 'subscription_payment_recovered'],
   paymentFailed: ['subscription_payment_failed'],
   paymentRefunded: ['order_refunded', 'refund_created', 'subscription_payment_refunded'],
 };
@@ -26,6 +26,8 @@ const EVENT_MAP = {
 function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
   const attributes = payload.data?.attributes || {};
   const isRefund = type === 'payment.refunded';
+  const firstOrderItemProductId = (attributes.first_order_item as { product_id?: number | string } | undefined)?.product_id;
+  const resolvedProductId = firstOrderItemProductId != null ? firstOrderItemProductId : attributes.product_id;
   return {
     provider: 'lemon-squeezy' as const,
     type,
@@ -33,7 +35,7 @@ function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
     subscriptionId: attributes.subscription_id != null ? String(attributes.subscription_id) : (payload.data?.type === 'subscriptions' ? payload.data?.id || null : null),
     customerId: attributes.customer_id == null ? null : String(attributes.customer_id),
     customerEmail: (attributes as any).user_email || attributes.customer_email || null,
-    productId: attributes.product_id == null ? null : String(attributes.product_id),
+    productId: resolvedProductId == null ? null : String(resolvedProductId),
     amount: isRefund
       ? (typeof attributes.refunded_amount === 'number' ? attributes.refunded_amount : (typeof attributes.total === 'number' ? attributes.total : null))
       : (typeof attributes.total === 'number' ? attributes.total : null),
