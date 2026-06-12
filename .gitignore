@@ -105,6 +105,10 @@ dist
 
 # Worktrees
 .worktrees/
+<<<<<<< HEAD
 
 # Worktrees
+.worktrees/
+=======
+>>>>>>> 0ec8b40 (chore: ignore .worktrees directory)
 .worktrees/
