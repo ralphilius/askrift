@@ -252,8 +252,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       return this._parsedEventPromise;
     }
     if (!parseBody(this._req.body)) {
-      this._parsedEventPromise = Promise.resolve(null);
-      return this._parsedEventPromise;
+      throw new Error("Could not parse webhook body");
     }
     const result = this.verify() ? this.toNormalizedEvent() : null;
     this._parsedEventPromise = Promise.resolve(result);

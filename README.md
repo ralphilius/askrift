@@ -12,7 +12,11 @@ Example using Vercel/NextJS serverless function
 import Askrift from '@ralphilius/askrift'
 
 module.exports = (req, res) => {
-  const askrift = Askrift.initialize("paddle", req.body);
+  const askrift = Askrift.initialize("paddle", {
+    method: req.method,
+    headers: req.headers,
+    body: req.body,
+  });
   if(askrift.validRequest()){
     if(askrift.validPayload()){
       askrift.onSubscriptionCreated().then(subscription => {
