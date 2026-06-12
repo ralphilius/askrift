@@ -14,6 +14,10 @@ describe("library works with stripe", function () {
     process.env.STRIPE_WEBHOOK_SECRET = stripeWebhookSecret;
   });
 
+  afterEach(() => {
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+  });
+
   it("should pass a valid signature", () => {
     const askrift = initialize("stripe", buildStripeRequest(stripeSubscriptionCreatedEvent));
 

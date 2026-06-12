@@ -40,9 +40,15 @@ function isStripeSupportedEventType(type: string): type is StripeSupportedEventT
 
 function timingSafeEqual(expected: string, actual: string): boolean {
   if (expected.length !== actual.length) return false;
-  const expectedBuffer = Buffer.from(expected, "hex");
-  const actualBuffer = Buffer.from(actual, "hex");
-
+  let expectedBuffer: Buffer;
+  let actualBuffer: Buffer;
+  try {
+    expectedBuffer = Buffer.from(expected, "hex");
+    actualBuffer = Buffer.from(actual, "hex");
+  } catch {
+    return false;
+  }
+  if (expectedBuffer.length !== actualBuffer.length) return false;
   return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
