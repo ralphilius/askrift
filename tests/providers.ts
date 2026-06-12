@@ -238,4 +238,99 @@ describe('provider lifecycle fixtures', function () {
     okReq.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, okReq.rawBody);
     assert.equal((await initialize('polar', okReq).onPaymentRefunded())?.type, 'payment.refunded');
   });
+
+  it('prefers Polar modified_at for occurredAt when present', async () => {
+    const id = 'msg_mod';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const body = {
+      type: 'subscription.updated',
+      data: {
+        id: 'sub_mod',
+        customer_id: 'cus_mod',
+        created_at: '2026-01-01T00:00:00Z',
+        modified_at: '2026-02-15T12:34:56Z',
+      },
+    };
+    const req = jsonReq(body, { 'webhook-id': id, 'webhook-timestamp': timestamp });
+    req.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, req.rawBody);
+    const event = await initialize('polar', req).onSubscriptionUpdated();
+    assert.equal(event?.occurredAt, '2026-02-15T12:34:56Z');
+  });
+
+  it('prefers Lemon Squeezy updated_at for occurredAt when present', async () => {
+    const body = {
+      meta: { event_name: 'subscription_updated' },
+      data: {
+        id: 'sub_ls',
+        type: 'subscriptions',
+        attributes: {
+          customer_email: 'buyer@example.com',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-03-20T08:00:00Z',
+        },
+      },
+    };
+    const req = jsonReq(body);
+    req.headers['x-signature'] = hmacHex(process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!, req.rawBody);
+    const event = await initialize('lemon-squeezy', req).onSubscriptionUpdated();
+    assert.equal(event?.occurredAt, '2026-03-20T08:00:00Z');
+  });
+
+  it('does not map Gumroad dispute_won events to payment.refunded', async () => {
+    const body = {
+      resource_name: 'dispute_won',
+      sale_id: 'sale_dw',
+    };
+    const req = jsonReq(body);
+    req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
+    const gumroad = initialize('gumroad', req);
+    assert.equal(await gumroad.onPaymentRefunded(), null);
+  });
+
+  it('does not map recurring Gumroad sales to subscription.created', async () => {
+    const body = {
+      resource_name: 'sale',
+      sale_id: 'sale_recurring',
+      subscription_id: 'sub_recurring',
+      recurring: true,
+    };
+    const req = jsonReq(body);
+    req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
+    const gumroad = initialize('gumroad', req);
+    assert.equal(await gumroad.onSubscriptionCreated(), null);
+    assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_recurring');
+  });
+
+  it('treats Polar order.refunded with partially_refunded status as a refund', async () => {
+    const id = 'msg_partial';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const body = {
+      type: 'order.refunded',
+      data: { id: 'ord_partial', status: 'partially_refunded', refunded_amount: 500 },
+    };
+    const req = jsonReq(body, { 'webhook-id': id, 'webhook-timestamp': timestamp });
+    req.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, req.rawBody);
+    const event = await initialize('polar', req).onPaymentRefunded();
+    assert.equal(event?.type, 'payment.partially_refunded');
+    assert.equal(event?.amount, 500);
+  });
+
+  it('reports Lemon Squeezy refund amount from refunded_amount when present', async () => {
+    const body = {
+      meta: { event_name: 'order_refunded' },
+      data: {
+        id: 'ord_ls',
+        type: 'orders',
+        attributes: {
+          total: 2900,
+          refunded_amount: 1200,
+          currency: 'USD',
+        },
+      },
+    };
+    const req = jsonReq(body);
+    req.headers['x-signature'] = hmacHex(process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!, req.rawBody);
+    const event = await initialize('lemon-squeezy', req).onPaymentRefunded();
+    assert.equal(event?.amount, 1200);
+  });
 });

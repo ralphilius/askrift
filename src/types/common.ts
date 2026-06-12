@@ -7,7 +7,8 @@ export type NormalizedEventType =
   | 'subscription.paused'
   | 'payment.succeeded'
   | 'payment.failed'
-  | 'payment.refunded';
+  | 'payment.refunded'
+  | 'payment.partially_refunded';
 
 export interface NormalizedEvent<Raw = unknown> {
   provider: NormalizedProvider;
