@@ -25,6 +25,7 @@ const EVENT_MAP = {
 
 function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
   const attributes = payload.data?.attributes || {};
+  const isRefund = type === 'payment.refunded';
   return {
     provider: 'lemon-squeezy' as const,
     type,
@@ -33,7 +34,9 @@ function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
     customerId: attributes.customer_id == null ? null : String(attributes.customer_id),
     customerEmail: (attributes as any).user_email || attributes.customer_email || null,
     productId: attributes.product_id == null ? null : String(attributes.product_id),
-    amount: typeof attributes.total === 'number' ? attributes.total : null,
+    amount: isRefund
+      ? (typeof attributes.refunded_amount === 'number' ? attributes.refunded_amount : (typeof attributes.total === 'number' ? attributes.total : null))
+      : (typeof attributes.total === 'number' ? attributes.total : null),
     currency: attributes.currency || null,
     occurredAt: attributes.created_at || attributes.updated_at || null,
     raw: payload,
