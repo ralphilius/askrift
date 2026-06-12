@@ -93,7 +93,7 @@ export function isEventFresh(
   if (toleranceMs < 0) throw new Error("toleranceMs must be non-negative");
 
   const timestamp = extractEventTimestamp(provider, payload);
-  if (!timestamp) return false;
+  if (!timestamp) return true;
 
   const ageMs = coerceNow(options.now) - timestamp.getTime();
   return ageMs >= -toleranceMs && ageMs <= options.maxAgeMs + toleranceMs;
