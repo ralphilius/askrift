@@ -314,46 +314,6 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     return verifyPaddleBillingSignature(rawBody, signatureHeader, this._billingSecret);
   }
 
-  verify(): boolean {
-    this.debug(this._req.body);
-    const body = parseBody(this._req.body);
-    if (!body) {
-      this._parsedBody = null;
-      this._providerKind = null;
-      return false;
-    }
-
-    if (isBillingPayload(body)) {
-      if (!this.matchesExpectedProviderKind('billing')) {
-        this._parsedBody = null;
-        this._providerKind = null;
-        return false;
-      }
-      const rawBody = getRawBody(this._req);
-      const signatureHeader = firstHeader(this._req.headers['paddle-signature']);
-      const verified = this.validBillingPayload(body, rawBody, signatureHeader);
-      this._parsedBody = verified ? body : null;
-      this._providerKind = verified ? 'billing' : null;
-      return verified;
-    }
-
-    if (isClassicPayload(body)) {
-      if (!this.matchesExpectedProviderKind('classic')) {
-        this._parsedBody = null;
-        this._providerKind = null;
-        return false;
-      }
-      const verified = this.validClassicPayload(body);
-      this._parsedBody = verified ? body : null;
-      this._providerKind = verified ? 'classic' : null;
-      return verified;
-    }
-
-    this._parsedBody = null;
-    this._providerKind = null;
-    return false;
-  }
-
   getIdempotencyKey(): string | null {
     const payload = parseBody(this._req.body);
     const eventId = extractStableEventId('paddle', payload);
@@ -566,18 +526,6 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     if (!this._parsedBody) return null;
 
     const body = this._parsedBody;
-
-    if (this._providerKind === 'billing') {
-      if (typeof body.event_type !== 'string') return null;
-      const eventType = body.event_type;
-      return {
-        eventType,
-        payload: body,
-        provider: BILLING_PROVIDER,
-        providerEventType: eventType,
-        aliases: [`paddle-billing.${eventType}`],
-      };
-    }
 
     if (this._providerKind === 'billing') {
       if (typeof body.event_type !== 'string') return null;
