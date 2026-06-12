@@ -8,6 +8,8 @@ const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
 });
 
+const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
+
 const PUBLIC_KEY_BODY = publicKey
   .export({ type: 'spki', format: 'pem' })
   .toString()
