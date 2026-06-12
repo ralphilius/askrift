@@ -412,7 +412,6 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     const normalizedRaw = normalizeWebhookEvent('paddle', body) as PaddlePayload & NormalizedWebhookEvent;
     const metadata = normalizePaddlePayload(body);
     const base = {
-      ...body,
       ...metadata,
       type,
       raw: normalizedRaw,
@@ -424,7 +423,6 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
       customerEmail: body.email,
       currency: body.currency,
       status: body.status,
-      provider: 'paddle',
     } as unknown as NormalizedSubscriptionEvent;
 
     let result: NormalizedSubscriptionEvent;

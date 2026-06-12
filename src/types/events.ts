@@ -353,6 +353,8 @@ export function createProviderStatusMetadata(
     ...(includeSubscriptionStatus ? { subscriptionStatus } : {}),
     ...(includePreviousSubscriptionStatus ? { previousSubscriptionStatus } : {}),
     ...(includePaymentStatus ? { paymentStatus } : {}),
+    ...(raw.eventName ? { eventName: raw.eventName } : {}),
+    ...(raw.refundType ? { refundType: raw.refundType } : {}),
     provider: {
       name: provider,
       ...(includeSubscriptionStatus ? { subscriptionStatus } : {}),

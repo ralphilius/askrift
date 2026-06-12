@@ -190,7 +190,7 @@ describe('library works with paddle', function () {
   it('should keep payloads reusable after validation', async () => {
     assert.equal(askriftPd.validPayload(), true);
     const event = await askriftPd.onPaymentSucceeded();
-    assert.equal(event?.p_signature, validPayload.p_signature);
+    assert.equal((event?.raw as { p_signature?: string })?.p_signature, validPayload.p_signature);
   });
 
   it('should extract duplicate event IDs into the same provider-neutral idempotency key', async () => {
@@ -358,8 +358,8 @@ describe('library works with paddle', function () {
     assert.equal(paddle.validPayload(), true);
     const event = await paddle.onSubscriptionCreated();
     assert.isNotNull(event);
-    assert.equal(event?.alert_name, 'subscription_created');
-    assert.equal(event?.p_signature, signedCreated);
+    assert.equal((event?.raw as { alert_name?: string })?.alert_name, 'subscription_created');
+    assert.equal((event?.raw as { p_signature?: string })?.p_signature, signedCreated);
   });
 
   it('should accept requests whose content-type includes a charset parameter', () => {
@@ -415,8 +415,8 @@ describe('library works with paddle', function () {
     assert.equal(paddle.validRequest(), true);
     const event = await paddle.onPaymentSucceeded();
     assert.isNotNull(event);
-    assert.equal(event?.alert_name, 'subscription_payment_succeeded');
-    assert.equal(event?.subscription_id, '8');
+    assert.equal((event?.raw as { alert_name?: string })?.alert_name, 'subscription_payment_succeeded');
+    assert.equal((event?.raw as { subscription_id?: string })?.subscription_id, '8');
   });
 });
 
@@ -426,10 +426,13 @@ describe('provider registry initialization', function () {
 
     assert.equal(askriftPd.validRequest(), true);
     assert.equal(askriftPd.validPayload(), true);
-    assert.deepInclude(await askriftPd.onPaymentSucceeded(), {
-      alert_name: 'subscription_payment_succeeded',
-      subscription_id: '8',
-    });
+    assert.deepInclude(
+      ((await askriftPd.onPaymentSucceeded())?.raw ?? {}) as Record<string, unknown>,
+      {
+        alert_name: 'subscription_payment_succeeded',
+        subscription_id: '8',
+      }
+    );
     assert.equal(await askriftPd.onSubscriptionCreated(), null);
   });
 
