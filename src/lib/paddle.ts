@@ -10,6 +10,15 @@ import {
   SubscriptionUpdated,
 } from "../types/paddle/subscription";
 import {
+  PaddleBillingEvent,
+  PaddleBillingSubscriptionEvent,
+  PaddleBillingTransactionEvent,
+} from "../types/paddle/billing";
+import {
+  PaddleClassicAlert,
+  PaddleClassicAlertName,
+} from "../types/paddle/classic";
+import {
   NormalizedSubscriptionEvent,
   SUBSCRIPTION_EVENT_TYPES,
   SubscriptionEventType,
@@ -38,6 +47,10 @@ function normalizePublicKey(publicKey: string): string {
 
   return `-----BEGIN PUBLIC KEY-----\n${normalized}\n-----END PUBLIC KEY-----`;
 }
+
+const BILLING_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
+const BILLING_PROVIDER = 'paddle-billing';
+const CLASSIC_PROVIDER = 'paddle-classic';
 
 export type PaddleSubscriptionEvents = {
   [SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated]: SubscriptionCreated;
@@ -104,6 +117,70 @@ function parseBody(body: any): PaddlePayload | null {
   }
 }
 
+function getRawBody(req: InternalRequest): string | null {
+  const candidate = (req as any).rawBody ?? req.body;
+  if (typeof candidate === 'string') return candidate;
+  if (Buffer.isBuffer(candidate)) return candidate.toString('utf8');
+  return null;
+}
+
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function isBillingPayload(body: PaddlePayload): boolean {
+  return typeof body.event_type === 'string';
+}
+
+function isClassicPayload(body: PaddlePayload): boolean {
+  return typeof body.alert_name === 'string' || typeof body.p_signature === 'string';
+}
+
+export function verifyPaddleBillingSignature(
+  rawBody: string | null,
+  signatureHeader: string | undefined,
+  secret: string,
+  now: number = Math.floor(Date.now() / 1000),
+): boolean {
+  if (!secret || !signatureHeader || !rawBody) return false;
+
+  const parts: Record<string, string[]> = {};
+  signatureHeader.trim().split(';').forEach((part) => {
+    const eqIdx = part.indexOf('=');
+    if (eqIdx <= 0) return;
+    const key = part.slice(0, eqIdx).trim();
+    const value = part.slice(eqIdx + 1).trim();
+    if (!key || !value) return;
+    if (!parts[key]) parts[key] = [];
+    parts[key].push(value);
+  });
+
+  const ts = parts.ts?.[0];
+  const h1 = parts.h1?.[0];
+  if (!ts || !h1) return false;
+
+  const timestamp = parseInt(ts, 10);
+  if (isNaN(timestamp)) return false;
+  if (Math.abs(now - timestamp) > BILLING_SIGNATURE_TOLERANCE_SECONDS) return false;
+
+  const signedPayload = `${ts}:${rawBody}`;
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+
+  if (expected.length !== h1.length) return false;
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, 'utf8'),
+      Buffer.from(h1, 'utf8'),
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
 export function verifyPaddleSignature(payload: unknown, publicKey: string): boolean {
   if (!isObject(payload) || Array.isArray(payload)) return false;
 
@@ -141,8 +218,10 @@ export function verifyPaddleSignature(payload: unknown, publicKey: string): bool
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req: InternalRequest;
   private _pubKey: string;
+  private _billingSecret: string;
   private _parsedBody: PaddlePayload | null | undefined;
   private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
+  private _providerKind: 'classic' | 'billing' | null = null;
 
   constructor(req: InternalRequest, options: PaddleOptions | boolean = {}) {
     const paddleOptions = typeof options === 'boolean' ? { debug: options } : options;
@@ -153,6 +232,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
 
     this._req = fromRaw(req);
     this._pubKey = normalizePublicKey(publicKey);
+    this._billingSecret = process.env.PADDLE_BILLING_WEBHOOK_SECRET || '';
   }
 
   onSubscriptionCreated(): Promise<SubscriptionCreated | null> {
@@ -185,29 +265,65 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     return contentType === 'application/x-www-form-urlencoded' || contentType === 'application/json';
   }
 
+  validClassicPayload(body: PaddlePayload = parseBody(this._req.body) || {}): boolean {
+    this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
+    if (!isObject(body) || Array.isArray(body)) return false;
+    if (!isClassicPayload(body)) return false;
+    return verifyPaddleSignature(body, this._pubKey);
+  }
+
+  validBillingPayload(
+    body: PaddlePayload = parseBody(this._req.body) || {},
+    rawBody: string | null = getRawBody(this._req),
+    signatureHeader: string | undefined = firstHeader(this._req.headers['paddle-signature']),
+  ): boolean {
+    if (!this._billingSecret) return false;
+    if (!isObject(body) || Array.isArray(body)) return false;
+    if (!isBillingPayload(body)) return false;
+    if (!rawBody) return false;
+    return verifyPaddleBillingSignature(rawBody, signatureHeader, this._billingSecret);
+  }
+
   verify(): boolean {
     this.debug(this._req.body);
     const body = parseBody(this._req.body);
     if (!body) {
       this._parsedBody = null;
+      this._providerKind = null;
       return false;
     }
 
-    this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
-    const verified = verifyPaddleSignature(body, this._pubKey);
-    this._parsedBody = verified ? body : null;
-    return verified;
+    if (isBillingPayload(body)) {
+      const rawBody = getRawBody(this._req);
+      const signatureHeader = firstHeader(this._req.headers['paddle-signature']);
+      const verified = this.validBillingPayload(body, rawBody, signatureHeader);
+      this._parsedBody = verified ? body : null;
+      this._providerKind = verified ? 'billing' : null;
+      return verified;
+    }
+
+    if (isClassicPayload(body)) {
+      const verified = this.validClassicPayload(body);
+      this._parsedBody = verified ? body : null;
+      this._providerKind = verified ? 'classic' : null;
+      return verified;
+    }
+
+    this._parsedBody = null;
+    this._providerKind = null;
+    return false;
   }
 
   getEventType(): SubscriptionEventType | null {
     const body = this._parsedBody;
-    if (!body || typeof body.alert_name !== 'string') return null;
+    if (!body || this._providerKind !== 'classic') return null;
+    if (typeof body.alert_name !== 'string') return null;
     return PADDLE_EVENT_TYPES[body.alert_name] || null;
   }
 
   toNormalizedEvent(): NormalizedSubscriptionEvent | null {
     const body = this._parsedBody;
-    if (!body) return null;
+    if (!body || this._providerKind !== 'classic') return null;
 
     const type = this.getEventType();
     if (!type) return null;
@@ -298,17 +414,70 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     if (!this._parsedBody) return null;
 
     const body = this._parsedBody;
-    if (typeof body.alert_name !== 'string') return null;
 
-    const providerEventType = body.alert_name;
-    const eventType = normalizePaddleEventName(providerEventType);
+    if (this._providerKind === 'billing') {
+      if (typeof body.event_type !== 'string') return null;
+      const eventType = body.event_type;
+      return {
+        eventType,
+        payload: body,
+        provider: BILLING_PROVIDER,
+        providerEventType: eventType,
+        aliases: [`paddle-billing.${eventType}`],
+      };
+    }
 
-    return {
-      eventType,
-      payload: body,
-      provider: 'paddle',
-      providerEventType,
-      aliases: [`paddle.${providerEventType}`],
-    };
+    if (this._providerKind === 'classic') {
+      if (typeof body.alert_name !== 'string') return null;
+      const providerEventType = body.alert_name;
+      const eventType = normalizePaddleEventName(providerEventType);
+      return {
+        eventType,
+        payload: body,
+        provider: CLASSIC_PROVIDER,
+        providerEventType,
+        aliases: [`paddle-classic.${providerEventType}`],
+      };
+    }
+
+    return null;
+  }
+
+  async onClassicEvent(): Promise<PaddleClassicAlert | null> {
+    if (!this.verify()) return null;
+    if (this._providerKind !== 'classic') return null;
+    return this._parsedBody as PaddleClassicAlert;
+  }
+
+  async onClassicSubscriptionEvent(): Promise<PaddleClassicAlert | null> {
+    const event = await this.onClassicEvent();
+    if (!event || typeof event.alert_name !== 'string') return null;
+    const lifecycleNames: PaddleClassicAlertName[] = [
+      'subscription_created',
+      'subscription_updated',
+      'subscription_cancelled',
+    ];
+    if (!lifecycleNames.includes(event.alert_name)) return null;
+    return event;
+  }
+
+  async onBillingEvent(): Promise<PaddleBillingEvent | null> {
+    if (!this.verify()) return null;
+    if (this._providerKind !== 'billing') return null;
+    return this._parsedBody as PaddleBillingEvent;
+  }
+
+  async onBillingSubscriptionEvent(): Promise<PaddleBillingSubscriptionEvent | null> {
+    const event = await this.onBillingEvent();
+    if (!event || typeof event.event_type !== 'string') return null;
+    if (!event.event_type.startsWith('subscription.')) return null;
+    return event as PaddleBillingSubscriptionEvent;
+  }
+
+  async onBillingTransactionEvent(): Promise<PaddleBillingTransactionEvent | null> {
+    const event = await this.onBillingEvent();
+    if (!event || typeof event.event_type !== 'string') return null;
+    if (!event.event_type.startsWith('transaction.')) return null;
+    return event as PaddleBillingTransactionEvent;
   }
 }

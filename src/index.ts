@@ -14,6 +14,8 @@ export type { PaddleOptions, PaddleSubscriptionEvents } from "./lib/paddle";
 
 export type TypesMap = {
   paddle: Paddle;
+  'paddle-classic': Paddle;
+  'paddle-billing': Paddle;
 };
 
 export type InitializeOptions = PaddleOptions;
@@ -23,6 +25,8 @@ type ProviderConstructor<T extends keyof TypesMap> = new (request: InternalReque
 
 const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,
+  'paddle-classic': Paddle,
+  'paddle-billing': Paddle,
 };
 
 export class UnsupportedProviderError extends Error {
