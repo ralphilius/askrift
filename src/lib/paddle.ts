@@ -148,7 +148,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     const paddleOptions = typeof options === 'boolean' ? { debug: options } : options;
     super(paddleOptions.debug);
 
-    const publicKey = paddleOptions.publicKey || process.env.PADDLE_PUBLIC_KEY;
+    const publicKey = paddleOptions.publicKey !== undefined ? paddleOptions.publicKey : process.env.PADDLE_PUBLIC_KEY;
     if (!publicKey) throw new Error("Paddle public key is required (provide via options.publicKey or PADDLE_PUBLIC_KEY environment variable)");
 
     this._req = req;
