@@ -204,6 +204,73 @@ module.exports = (req, res) => {
 };
 ```
 
+### Idempotency keys and replay windows
+
+Webhook providers often retry delivery, so your handler should accept the first delivery for a provider event and skip later deliveries with the same ID. Áskrift exposes the provider's stable event ID through a provider-neutral idempotency key:
+
+```js
+import { initialize } from '@ralphilius/askrift'
+
+const askrift = initialize('paddle', req)
+
+if (!askrift.validRequest() || !askrift.validPayload({ maxAgeMs: 5 * 60 * 1000 })) {
+  res.status(400).end()
+  return
+}
+
+const idempotencyKey = askrift.getIdempotencyKey()
+// Paddle alert_id "120661188" becomes "paddle:120661188".
+```
+
+Normalized events returned from handlers expose the same `getIdempotencyKey()` method, plus timestamp helpers when a provider includes an event timestamp:
+
+```js
+const payment = await askrift.onPaymentSucceeded()
+
+if (payment) {
+  const idempotencyKey = payment.getIdempotencyKey()
+  const eventTimestamp = payment.getEventTimestamp()
+  const fresh = payment.isFresh({ maxAgeMs: 5 * 60 * 1000 })
+}
+```
+
+Use `getIdempotencyKey()` with any store that can atomically reserve a key before your business logic runs:
+
+```js
+const payment = await askrift.onPaymentSucceeded()
+if (!payment) return
+
+const key = payment.getIdempotencyKey()
+const ttlSeconds = 60 * 60 * 24 * 7
+
+// Database example: create a table with a UNIQUE constraint on `key`.
+try {
+  await db.webhookDeliveries.create({ data: { key } })
+} catch (error) {
+  // Duplicate key violation means this event was already handled.
+  return
+}
+
+// Redis example: SET key value NX EX ttlSeconds.
+const reserved = await redis.set(key, '1', { NX: true, EX: ttlSeconds })
+if (!reserved) return
+
+// KV example: use an atomic insert/create-if-not-exists operation.
+const created = await kv.set(key, '1', { ifNotExists: true, expirationTtl: ttlSeconds })
+if (!created) return
+
+// Safe to perform side effects after reserving the key.
+await provisionSubscription(payment)
+```
+
+You can also call the standalone helper if you are working with a raw provider payload:
+
+```js
+import { extractStableEventId } from '@ralphilius/askrift'
+
+const eventId = extractStableEventId('paddle', req.body)
+```
+
 ## Supported Services
 
 - Paddle

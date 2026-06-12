@@ -1,3 +1,5 @@
+import type { NormalizedWebhookEvent } from "../lib/idempotency";
+
 export const SUBSCRIPTION_EVENT_TYPES = {
   SubscriptionCreated: "subscription.created",
   SubscriptionUpdated: "subscription.updated",
@@ -9,7 +11,7 @@ export const SUBSCRIPTION_EVENT_TYPES = {
 
 export type SubscriptionEventType = typeof SUBSCRIPTION_EVENT_TYPES[keyof typeof SUBSCRIPTION_EVENT_TYPES];
 
-export interface NormalizedEventBase<TType extends SubscriptionEventType = SubscriptionEventType, TRaw = unknown> {
+export interface NormalizedEventBase<TType extends SubscriptionEventType = SubscriptionEventType, TRaw = unknown> extends NormalizedWebhookEvent {
   type: TType;
   provider: string;
   raw: TRaw;

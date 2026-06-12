@@ -1,4 +1,5 @@
-import Askrift, { initialize, fromVercel, Paddle, UnsupportedProviderError } from '../src';
+import Askrift, { initialize, fromVercel, UnsupportedProviderError, extractStableEventId, Paddle } from '../src';
+import { paddlePaymentSucceededPayload, paddlePaymentSucceededDuplicatePayload, paddleStalePaymentSucceededPayload } from './fixtures/paddle';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
@@ -30,10 +31,7 @@ const baseReq: any = {
 
 const paddlePublicKey = `-----BEGIN PUBLIC KEY-----\n${process.env.PADDLE_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
 
-const payload = {
-  "alert_id": "120661188", "alert_name": "subscription_payment_succeeded", "balance_currency": "GBP", "balance_earnings": "990.07", "balance_fee": "99.44", "balance_gross": "570.99", "balance_tax": "213.9", "checkout_id": "7-8ed52238d1752b0-72f9b4c4b7", "country": "AU", "coupon": "Coupon 8", "currency": "GBP", "customer_name": "customer_name", "earnings": "850.26", "email": "mitchell.ollie@example.org", "event_time": "2021-09-10 10:36:39", "fee": "0.77", "initial_payment": "false", "instalments": "3", "marketing_consent": "", "next_bill_date": "2021-09-25", "next_payment_amount": "next_payment_amount", "order_id": "8",
-  "passthrough": "Example String", "payment_method": "card", "payment_tax": "0.12", "plan_name": "Example String", "quantity": "21", "receipt_url": "https://my.paddle.com/receipt/8/485212962ae4daf-2e58a66474", "sale_gross": "463.62", "status": "active", "subscription_id": "8", "subscription_payment_id": "7", "subscription_plan_id": "6", "unit_price": "unit_price", "user_id": "4"
-};
+const payload = paddlePaymentSucceededPayload;
 
 function ksort(obj: { [k: string]: any }) {
   const keys = Object.keys(obj).sort();
@@ -127,24 +125,41 @@ const urlEncodedReq = {
   body: new URLSearchParams(validPayload).toString(),
 };
 
+const duplicatePayload = {
+  ...paddlePaymentSucceededDuplicatePayload,
+  p_signature: JSON.parse(signedPayload(paddlePaymentSucceededDuplicatePayload)).p_signature,
+};
+
+const stalePayload = {
+  ...paddleStalePaymentSucceededPayload,
+  p_signature: JSON.parse(signedPayload(paddleStalePaymentSucceededPayload)).p_signature,
+};
+
+const duplicateReq: any = {
+  ...baseReq,
+  method: 'POST',
+  body: JSON.stringify(duplicatePayload),
+};
+
+const staleReq: any = {
+  ...baseReq,
+  method: 'POST',
+  body: JSON.stringify(stalePayload),
+};
+
 describe('library works with paddle', function () {
-  const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
   let askriftPd: Paddle;
   let askriftBadPd: Paddle;
   let askriftUrlEncodedPd: Paddle;
-
-  after(() => {
-    if (previousPublicKey === undefined) {
-      delete process.env.PADDLE_PUBLIC_KEY;
-    } else {
-      process.env.PADDLE_PUBLIC_KEY = previousPublicKey;
-    }
-  });
+  let askriftDuplicatePd: Paddle;
+  let askriftStalePd: Paddle;
 
   it('should initalize successfully', (done) => {
     askriftPd = initialize('paddle', fromVercel(createReq('POST')));
     askriftBadPd = initialize('paddle', fromVercel(createReq('GET', JSON.stringify({ ...payload, p_signature: 'badsign' }))));
     askriftUrlEncodedPd = initialize('paddle', fromVercel(urlEncodedReq));
+    askriftDuplicatePd = initialize('paddle', fromVercel(duplicateReq));
+    askriftStalePd = initialize('paddle', fromVercel(staleReq));
     done();
   });
 
@@ -168,6 +183,93 @@ describe('library works with paddle', function () {
     assert.equal(askriftPd.validPayload(), true);
     const event = await askriftPd.onPaymentSucceeded();
     assert.equal(event?.p_signature, validPayload.p_signature);
+  });
+
+  it('should extract duplicate event IDs into the same provider-neutral idempotency key', async () => {
+    assert.equal(extractStableEventId('paddle', payload), '120661188');
+    assert.equal(askriftPd.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(askriftDuplicatePd.getIdempotencyKey(), 'paddle:120661188');
+
+    const event = await askriftDuplicatePd.onPaymentSucceeded();
+    assert.equal(event?.getIdempotencyKey(), 'paddle:120661188');
+  });
+
+  it('should expose event timestamps and reject stale payloads when max age is provided', async () => {
+    assert.equal(askriftPd.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+    assert.equal(askriftPd.validPayload({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
+    assert.equal(askriftStalePd.validPayload({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), false);
+
+    const event = await askriftPd.onPaymentSucceeded();
+    assert.equal(event?.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+    assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
+  });
+
+  it('should throw when maxAgeMs is negative', () => {
+    assert.throws(
+      () => askriftPd.validPayload({ maxAgeMs: -1 }),
+      Error,
+      'maxAgeMs must be non-negative'
+    );
+  });
+
+  it('should reject payloads with missing timestamps when max age is provided', () => {
+    const noTimestampPayload = { ...validPayloadWithoutSignature };
+    delete (noTimestampPayload as { event_time?: string }).event_time;
+    const signed = signPayload(noTimestampPayload);
+    const body = { ...noTimestampPayload, p_signature: signed };
+    const paddle = initialize('paddle', reqFor('POST', body, 'application/json'));
+
+    assert.equal(paddle.validPayload(), true);
+    assert.equal(paddle.validPayload({ maxAgeMs: 60 * 1000 }), false);
+  });
+
+  it('should clear parsed body when stale payload is rejected', () => {
+    const paddle = initialize('paddle', staleReq);
+    assert.equal(paddle.validPayload({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), false);
+    assert.isNull(paddle.getEventType());
+  });
+
+  it('should expose helpers on parseEvent() results', async () => {
+    const event = await askriftPd.parseEvent();
+    assert.isNotNull(event);
+    assert.equal(event?.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(event?.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+    assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
+  });
+
+  it('should expose helpers when using validPayload() then toNormalizedEvent() directly', () => {
+    const paddle = initialize('paddle', createReq('POST'));
+    assert.equal(paddle.validPayload(), true);
+
+    const event = paddle.toNormalizedEvent();
+    assert.isNotNull(event);
+    assert.equal(typeof event?.getIdempotencyKey, 'function');
+    assert.equal(event?.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(typeof event?.getEventTimestamp, 'function');
+    assert.equal(event?.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+    assert.equal(typeof event?.isFresh, 'function');
+    assert.equal(event?.isFresh({ maxAgeMs: 60 * 1000, now: new Date('2021-09-10T10:37:00Z') }), true);
+  });
+
+  it('should expose helpers on handle() payloads', async () => {
+    const paddle = initialize('paddle', createReq('POST'));
+    let received: any = null;
+    paddle.on('subscription.payment.succeeded', (payload) => {
+      received = payload;
+    });
+
+    const result = await paddle.handle();
+    assert.equal(result.handled, true);
+    assert.isNotNull(received);
+    assert.equal(typeof received.getIdempotencyKey, 'function');
+    assert.equal(received.getIdempotencyKey(), 'paddle:120661188');
+    assert.equal(typeof received.getEventTimestamp, 'function');
+    assert.equal(received.getEventTimestamp()?.toISOString(), '2021-09-10T10:36:39.000Z');
+  });
+
+  it('should trim whitespace-padded event IDs', () => {
+    const padded = { ...paddlePaymentSucceededPayload, alert_id: '  120661188  ' };
+    assert.equal(extractStableEventId('paddle', padded), '120661188');
   });
 
   it('should not pass invalid request', (done) => {
