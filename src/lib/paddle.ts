@@ -41,8 +41,8 @@ const PADDLE_EVENT_TYPES: Record<string, SubscriptionEventType> = {
 function ksort(obj: PaddlePayload) {
   const keys = Object.keys(obj).sort();
   let sortedObj: PaddlePayload = {};
-  for (let i in keys) {
-    sortedObj[keys[i]] = obj[keys[i]];
+  for (const key of keys) {
+    sortedObj[key] = obj[key];
   }
   return sortedObj;
 }
@@ -85,10 +85,44 @@ function parseBody(body: any): PaddlePayload | null {
   }
 }
 
+export function verifyPaddleSignature(payload: unknown, publicKey: string): boolean {
+  if (!isObject(payload) || Array.isArray(payload)) return false;
+
+  const copiedPayload = { ...(payload as { [k: string]: any }) };
+  const signature = copiedPayload.p_signature;
+
+  if (typeof signature !== 'string') return false;
+
+  delete copiedPayload.p_signature;
+
+  let jsonObj = ksort(copiedPayload);
+  for (const property of Object.keys(jsonObj)) {
+    if ((typeof jsonObj[property]) !== "string") {
+      if (Array.isArray(jsonObj[property])) { // is it an array
+        jsonObj[property] = jsonObj[property].toString();
+      } else { //if its not an array and not a string, then it is a JSON obj
+        jsonObj[property] = JSON.stringify(jsonObj[property]);
+      }
+    }
+  }
+
+  try {
+    const mySig = Buffer.from(signature, 'base64');
+    const serialized = serialize(jsonObj);
+    const verifier = crypto.createVerify('sha1');
+    verifier.update(serialized);
+    verifier.end();
+
+    return verifier.verify(publicKey, mySig);
+  } catch (error) {
+    return false;
+  }
+}
+
 export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   private _req;
   private _pubKey: string;
-  private _parsedBody: PaddlePayload | null = null;
+  private _parsedBody: PaddlePayload | null | undefined;
   private _parsedEventPromise: Promise<NormalizedSubscriptionEvent | null> | null = null;
 
   constructor(req: VercelRequest | Request, debugged?: boolean) {
@@ -123,49 +157,23 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
   }
 
   validRequest(): boolean {
-    return this._req.method == 'POST' && normaliseContentType(this._req.headers['content-type']) == 'application/x-www-form-urlencoded';
+    if (this._req.method !== 'POST') return false;
+    const contentType = normaliseContentType(this._req.headers['content-type']);
+    return contentType === 'application/x-www-form-urlencoded' || contentType === 'application/json';
   }
 
   verify(): boolean {
     this.debug(this._req.body);
     const body = parseBody(this._req.body);
-    if (!body || typeof body.p_signature !== 'string') {
+    if (!body) {
       this._parsedBody = null;
       return false;
     }
 
     this.debug("PADDLE_PUBLIC_KEY", this._pubKey);
-    const { p_signature, ...unsignedPayload } = body;
-    let jsonObj = ksort(unsignedPayload);
-    for (let property in jsonObj) {
-      if (jsonObj.hasOwnProperty(property) && (typeof jsonObj[property]) !== "string") {
-        if (Array.isArray(jsonObj[property])) {
-          jsonObj[property] = jsonObj[property].toString();
-        } else {
-          jsonObj[property] = JSON.stringify(jsonObj[property]);
-        }
-      }
-    }
-
-    try {
-      const serialized = serialize(jsonObj);
-      const verifier = crypto.createVerify('sha1');
-      verifier.update(serialized);
-      verifier.end();
-
-      const mySig = Buffer.from(p_signature, 'base64');
-      const verified = verifier.verify(this._pubKey, mySig);
-      if (verified) {
-        this._parsedBody = body;
-      } else {
-        this._parsedBody = null;
-      }
-      return verified;
-    } catch (error) {
-      this.debug(error);
-      this._parsedBody = null;
-      return false;
-    }
+    const verified = verifyPaddleSignature(body, this._pubKey);
+    this._parsedBody = verified ? body : null;
+    return verified;
   }
 
   getEventType(): SubscriptionEventType | null {
