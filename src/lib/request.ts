@@ -48,7 +48,7 @@ export function fromRaw({ method, headers = {}, body, rawBody }: RawRequestInput
   };
 }
 
-export function fromExpress(req: FrameworkRequest): InternalRequest {
+function adaptFrameworkRequest(req: FrameworkRequest): InternalRequest {
   const safeReq = req || {};
   return fromRaw({
     method: safeReq.method || '',
@@ -58,12 +58,10 @@ export function fromExpress(req: FrameworkRequest): InternalRequest {
   });
 }
 
+export function fromExpress(req: FrameworkRequest): InternalRequest {
+  return adaptFrameworkRequest(req);
+}
+
 export function fromVercel(req: FrameworkRequest): InternalRequest {
-  const safeReq = req || {};
-  return fromRaw({
-    method: safeReq.method || '',
-    headers: safeReq.headers,
-    body: safeReq.body,
-    rawBody: safeReq.rawBody,
-  });
+  return adaptFrameworkRequest(req);
 }
