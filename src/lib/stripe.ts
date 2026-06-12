@@ -133,6 +133,7 @@ export default class Stripe extends Askrift<"stripe"> {
   }
 
   validPayload(): boolean {
+    if (!this.verifySignature()) return false;
     try {
       const event = this.parseEvent();
       return isStripeSupportedEventType(event.type);
@@ -140,6 +141,10 @@ export default class Stripe extends Askrift<"stripe"> {
       this.debug(error);
       return false;
     }
+  }
+
+  isSupportedEventType(type: string): boolean {
+    return isStripeSupportedEventType(type);
   }
 
   verifySignature(toleranceInSeconds: number = 300): boolean {
