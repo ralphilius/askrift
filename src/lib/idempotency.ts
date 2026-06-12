@@ -19,7 +19,7 @@ export type EventTimestampValidationOptions = {
 export interface NormalizedWebhookEvent {
   getIdempotencyKey(): string | null;
   getEventTimestamp(): Date | null;
-  isFresh(options: EventTimestampValidationOptions): boolean;
+  isFresh(options: EventTimestampValidationOptions): boolean | null;
 }
 
 type ProviderConfig = {
@@ -86,14 +86,14 @@ export function isEventFresh(
   provider: WebhookProvider,
   payload: unknown,
   options: EventTimestampValidationOptions,
-): boolean {
+): boolean | null {
   if (options.maxAgeMs < 0) return false;
 
   const toleranceMs = options.toleranceMs ?? 5 * 60 * 1000;
   if (toleranceMs < 0) throw new Error("toleranceMs must be non-negative");
 
   const timestamp = extractEventTimestamp(provider, payload);
-  if (!timestamp) return true;
+  if (!timestamp) return null;
 
   const ageMs = coerceNow(options.now) - timestamp.getTime();
   return ageMs >= -toleranceMs && ageMs <= options.maxAgeMs + toleranceMs;

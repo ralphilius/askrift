@@ -364,7 +364,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     return extractEventTimestamp('paddle', parseBody(this._req.body));
   }
 
-  validEventAge(options: EventTimestampValidationOptions): boolean {
+  validEventAge(options: EventTimestampValidationOptions): boolean | null {
     return isEventFresh('paddle', parseBody(this._req.body), options);
   }
 
