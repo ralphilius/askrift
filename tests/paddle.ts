@@ -429,3 +429,35 @@ describe('paddle initialization options', function () {
     done();
   });
 });
+
+describe('request adapter falls back to rawBody', function () {
+  it('should use rawBody when body is undefined (string rawBody)', () => {
+    const rawBody = new URLSearchParams(validPayload).toString();
+    const paddle = initialize('paddle', fromVercel({
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      rawBody,
+    }));
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('should use rawBody when body is undefined (Buffer rawBody)', () => {
+    const rawBody = Buffer.from(JSON.stringify(validPayload));
+    const paddle = initialize('paddle', fromVercel({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      rawBody,
+    }));
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('should prefer body over rawBody when body is defined', () => {
+    const paddle = initialize('paddle', fromVercel({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: { ...validPayload },
+      rawBody: 'unused-raw-body',
+    }));
+    assert.equal(paddle.validPayload(), true);
+  });
+});

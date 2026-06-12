@@ -40,10 +40,15 @@ function normalizeHeaders(headers: Record<string, HeaderValue> | null = {}): Req
 }
 
 export function fromRaw({ method, headers = {}, body, rawBody }: RawRequestInput): InternalRequest {
+  const resolvedBody = body !== undefined
+    ? body
+    : rawBody instanceof Buffer
+      ? rawBody.toString('utf8')
+      : rawBody;
   return {
     method,
     headers: normalizeHeaders(headers),
-    body,
+    body: resolvedBody,
     rawBody,
   };
 }
