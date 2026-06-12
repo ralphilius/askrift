@@ -23,13 +23,17 @@ const EVENT_MAP = {
   paymentRefunded: ['order.refunded', 'refund.created', 'refund.updated'],
 };
 
-const REFUND_COMPLETED_STATUSES = new Set(['succeeded', 'refunded', 'paid']);
+const REFUND_COMPLETED_STATUSES = new Set(['succeeded', 'refunded', 'paid', 'partially_refunded']);
 
 function normalize(payload: PolarWebhookPayload, type: any) {
   const data = payload.data || {};
+  const status = (data as any)?.status;
+  const resolvedType = typeof status === 'string' && status.toLowerCase() === 'partially_refunded'
+    ? 'payment.partially_refunded'
+    : type;
   return {
     provider: 'polar' as const,
-    type,
+    type: resolvedType,
     id: data.id,
     subscriptionId: data.subscription_id || (payload.type?.startsWith('subscription.') ? data.id : null) || null,
     customerId: data.customer_id || data.customer?.id || null,

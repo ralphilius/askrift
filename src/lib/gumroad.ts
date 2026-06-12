@@ -18,7 +18,8 @@ const EVENT_MAP = {
   canceled: ['subscription_ended'],
   paymentSucceeded: ['sale'],
   paymentFailed: ['dispute'],
-  paymentRefunded: ['refund', 'dispute_won'],
+  paymentRefunded: ['refund'],
+  disputeWon: ['dispute_won'],
 };
 
 function normalize(payload: GumroadWebhookPayload, type: any) {
@@ -37,12 +38,13 @@ function normalize(payload: GumroadWebhookPayload, type: any) {
   };
 }
 
-function promisify<T>(req: any, eventNames: string[], type: any, requireSubscription = false): Promise<T | null> {
+function promisify<T>(req: any, eventNames: string[], type: any, requireSubscription = false, requireNonRecurring = false): Promise<T | null> {
   return new Promise((resolve, reject) => {
     try {
       const payload = parseBody<GumroadWebhookPayload>(req);
       const resource: string | undefined = payload.resource_name || getHeader(req.headers, 'x-gumroad-resource-name');
-      const matches = !!resource && eventNames.includes(resource) && (!requireSubscription || Boolean(payload.subscription_id));
+      const isRecurring = Boolean((payload as any).recurring);
+      const matches = !!resource && eventNames.includes(resource) && (!requireSubscription || Boolean(payload.subscription_id)) && (!requireNonRecurring || !isRecurring);
       resolve(matches ? normalize(payload, type) as unknown as T : null);
     } catch (error) {
       reject(error);
@@ -62,7 +64,7 @@ export default class Gumroad extends Askrift<'gumroad'> {
   }
 
   onSubscriptionCreated(): Promise<GumroadSubscriptionCreated | null> {
-    return promisify(this._req, EVENT_MAP.created, 'subscription.created', true);
+    return promisify(this._req, EVENT_MAP.created, 'subscription.created', true, true);
   }
   onSubscriptionCanceled(): Promise<GumroadSubscriptionCancelled | null> {
     return promisify(this._req, EVENT_MAP.canceled, 'subscription.canceled');

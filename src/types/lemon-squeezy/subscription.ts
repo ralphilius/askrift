@@ -18,6 +18,7 @@ export interface LemonSqueezyWebhookPayload {
       variant_id?: number | string;
       subscription_id?: number | string;
       total?: number;
+      refunded_amount?: number;
       currency?: string;
       created_at?: string;
       updated_at?: string;
