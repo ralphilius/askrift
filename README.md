@@ -1,28 +1,113 @@
-A small utilities library to make it easier to handle webhooks from popular subscription services
+A small utilities library to make it easier to handle webhooks from popular subscription services.
 
-**Áskrift** means subscription in Icelandic
+**Áskrift** means subscription in Icelandic.
 
 ```bash
 npm install @ralphilius/askrift # or yarn add @ralphilius/askrift
 ```
 
-### Use on your server
-Example using Vercel/NextJS serverless function
+## Use on your server
+
+Áskrift can still be used with the provider-specific helpers (`validRequest()`,
+`validPayload()`, `onSubscriptionCreated()`, and friends), but new integrations
+can use the webhook dispatcher API:
+
+```ts
+askrift.on(eventName, handler);
+const result = await askrift.handle();
+```
+
+`handle()` validates the request, verifies the payload signature, parses the
+provider event, and invokes matching handlers. It returns a structured result:
+
+```ts
+{
+  verified: boolean;
+  handled: boolean;
+  eventType?: string;
+  errors?: Error[];
+}
+```
+
+`handled` is `true` only when at least one matching handler was invoked AND none
+of them threw. If any registered handler rejects, `handle()` catches the error,
+records it in `result.errors`, and returns `handled: false` so callers can map
+that to a 5xx response (instead of silently acknowledging a failed side effect).
+
+Event handlers receive the parsed payload and a context object that includes the
+normalized event name, the provider-specific event name, and the matched handler
+name. Paddle webhooks support normalized event names such as
+`subscription.created` and provider-specific names such as
+`paddle.subscription_created`.
+
+### Express example
+
+```ts
+import express from 'express';
+import { initialize } from '@ralphilius/askrift';
+
+const app = express();
+
+app.post('/webhooks/paddle', express.urlencoded({ extended: false }), async (req, res) => {
+  const askrift = initialize('paddle', req);
+
+  askrift.on('subscription.created', async (payload, event) => {
+    console.log('New subscription:', payload.subscription_id);
+    console.log('Provider event:', event.providerEventType);
+  });
+
+  askrift.on('paddle.subscription_payment_succeeded', async (payload) => {
+    console.log('Payment succeeded:', payload.subscription_payment_id);
+  });
+
+  const result = await askrift.handle();
+
+  if (!result.verified) return res.status(403).json(result);
+  if (!result.handled) return res.status(500).json(result);
+
+  return res.status(200).json(result);
+});
+```
+
+### Next.js API route example
+
+```ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { initialize } from '@ralphilius/askrift';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const askrift = initialize('paddle', req);
+
+  askrift.on('subscription.created', async (payload) => {
+    console.log('New subscription:', payload.subscription_id);
+  });
+
+  askrift.on('paddle.subscription_cancelled', async (payload) => {
+    console.log('Subscription cancelled:', payload.subscription_id);
+  });
+
+  const result = await askrift.handle();
+
+  if (!result.verified) return res.status(403).json(result);
+
+  return res.status(result.handled ? 200 : 202).json(result);
+}
+```
+
+### Legacy provider-specific helper example
+
 ```js
-import Askrift from '@ralphilius/askrift'
+import { initialize } from '@ralphilius/askrift';
 
 module.exports = (req, res) => {
-  const askrift = Askrift.initialize("paddle", {
-    method: req.method,
-    headers: req.headers,
-    body: req.body,
-  });
-  if(askrift.validRequest()){
-    if(askrift.validPayload()){
+  const askrift = initialize('paddle', req);
+
+  if (askrift.validRequest()) {
+    if (askrift.validPayload()) {
       askrift.onSubscriptionCreated().then(subscription => {
         // Handle subscription_created event
-      })
-    // Handle other events
+      });
+      // Handle other events
     } else {
       // Invalid body, possibly leak of webhooks URL?
       res.status(403).end();
@@ -30,11 +115,11 @@ module.exports = (req, res) => {
   } else {
     res.status(400).end();
   }
-}
-
+};
 ```
 
-### Supported Services
- - Paddle
- - Stripe (Coming soon)
- - Gumroad (Coming soon)
+## Supported Services
+
+- Paddle
+- Stripe (Coming soon)
+- Gumroad (Coming soon)

@@ -2,7 +2,7 @@ import { VercelRequest } from "@vercel/node";
 import { Request } from 'express';
 import * as crypto from "crypto";
 import { serialize } from 'php-serialize';
-import Askrift from "./askrift";
+import Askrift, { AskriftParsedEvent } from "./askrift";
 import {
   SubscriptionCancelled,
   SubscriptionCreated,
@@ -60,6 +60,10 @@ function toDate(value?: Date | string): Date | undefined {
 function normaliseContentType(contentType: string | string[] | undefined): string {
   const value = Array.isArray(contentType) ? contentType[0] : contentType;
   return value?.split(';')[0].trim().toLowerCase() || '';
+}
+
+function normalizePaddleEventName(alertName: string): string {
+  return alertName.replace(/_/g, '.');
 }
 
 function parseBody(body: any): PaddlePayload | null {
@@ -257,5 +261,23 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     const result = this.verify() ? this.toNormalizedEvent() : null;
     this._parsedEventPromise = Promise.resolve(result);
     return this._parsedEventPromise;
+  }
+
+  protected parseProviderEvent(): AskriftParsedEvent | null {
+    if (!this._parsedBody) return null;
+
+    const body = this._parsedBody;
+    if (typeof body.alert_name !== 'string') return null;
+
+    const providerEventType = body.alert_name;
+    const eventType = normalizePaddleEventName(providerEventType);
+
+    return {
+      eventType,
+      payload: body,
+      provider: 'paddle',
+      providerEventType,
+      aliases: [`paddle.${providerEventType}`],
+    };
   }
 }

@@ -162,3 +162,54 @@ describe('provider registry initialization', function () {
     );
   });
 });
+
+describe('handle() propagates handler failures', function () {
+  it('reports a thrown handler error and returns handled: false', async () => {
+    const askriftPd = initialize('paddle', createReq('POST'));
+    const boom = new Error('handler exploded');
+
+    askriftPd.on('subscription.payment.succeeded', () => {
+      throw boom;
+    });
+
+    const result = await askriftPd.handle();
+
+    assert.equal(result.verified, true);
+    assert.equal(result.handled, false);
+    assert.equal(result.eventType, 'subscription.payment.succeeded');
+    assert.isArray(result.errors);
+    assert.lengthOf(result.errors!, 1);
+    assert.strictEqual(result.errors![0], boom);
+  });
+
+  it('reports an async rejection and returns handled: false', async () => {
+    const askriftPd = initialize('paddle', createReq('POST'));
+
+    askriftPd.on('subscription.payment.succeeded', async () => {
+      throw new Error('async boom');
+    });
+
+    const result = await askriftPd.handle();
+
+    assert.equal(result.handled, false);
+    assert.isArray(result.errors);
+    assert.lengthOf(result.errors!, 1);
+    assert.instanceOf(result.errors![0], Error);
+    assert.equal(result.errors![0].message, 'async boom');
+  });
+
+  it('returns handled: true and no errors when all handlers succeed', async () => {
+    const askriftPd = initialize('paddle', createReq('POST'));
+    let called = 0;
+
+    askriftPd.on('subscription.payment.succeeded', () => {
+      called += 1;
+    });
+
+    const result = await askriftPd.handle();
+
+    assert.equal(called, 1);
+    assert.equal(result.handled, true);
+    assert.isUndefined(result.errors);
+  });
+});
