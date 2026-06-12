@@ -247,7 +247,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     }
   }
 
-  parseEvent(): Promise<NormalizedSubscriptionEvent | null> {
+  async parseEvent(): Promise<NormalizedSubscriptionEvent | null> {
     if (this._parsedEventPromise) {
       return this._parsedEventPromise;
     }
