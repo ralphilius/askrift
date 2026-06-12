@@ -301,6 +301,20 @@ describe('provider lifecycle fixtures', function () {
     assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_recurring');
   });
 
+  it('treats string "false" Gumroad recurring as non-recurring', async () => {
+    const body = {
+      resource_name: 'sale',
+      sale_id: 'sale_string_false',
+      subscription_id: 'sub_string_false',
+      recurring: 'false',
+    };
+    const req = jsonReq(body);
+    req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
+    const gumroad = initialize('gumroad', req);
+    assert.equal((await gumroad.onSubscriptionCreated())?.id, 'sale_string_false');
+    assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_string_false');
+  });
+
   it('treats Polar order.refunded with partially_refunded status as a refund', async () => {
     const id = 'msg_partial';
     const timestamp = String(Math.floor(Date.now() / 1000));

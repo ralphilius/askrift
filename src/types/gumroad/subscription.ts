@@ -25,6 +25,12 @@ export interface GumroadWebhookPayload {
   quantity?: string | number;
   purchaser_id?: string;
   subscription_id?: string | null;
+  /**
+   * Indicates whether the resource is a recurring billing event (renewal) versus
+   * a one-time purchase. Accepts booleans or the string forms Gumroad sends in
+   * webhook payloads (e.g. "true", "false").
+   */
+  recurring?: boolean | string | number;
   [key: string]: unknown;
 }
 
