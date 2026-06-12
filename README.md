@@ -465,7 +465,7 @@ export async function POST(request: Request) {
     body,
   };
 
-  const askrift = initialize('paddle', req);
+  const askrift = initialize('paddle', req as any);
 
   if (!askrift.validRequest()) {
     return new Response('Invalid webhook request', { status: 400 });
