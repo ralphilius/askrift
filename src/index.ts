@@ -1,5 +1,5 @@
 import Askrift, { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent } from "./lib/askrift";
-import Paddle, { PaddleOptions } from "./lib/paddle";
+import Paddle, { PaddleOptions, PaddleProviderKind } from "./lib/paddle";
 import { fromExpress, fromRaw, fromVercel } from "./lib/request";
 import type { InternalRequest, RequestHeaders } from "./lib/request";
 
@@ -10,10 +10,12 @@ export { fromExpress, fromRaw, fromVercel };
 export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
 export * from "./types/events";
 export type { InternalRequest, RequestHeaders } from "./lib/request";
-export type { PaddleOptions, PaddleSubscriptionEvents } from "./lib/paddle";
+export type { PaddleOptions, PaddleProviderKind, PaddleSubscriptionEvents } from "./lib/paddle";
 
 export type TypesMap = {
   paddle: Paddle;
+  'paddle-classic': Paddle;
+  'paddle-billing': Paddle;
 };
 
 export type InitializeOptions = PaddleOptions;
@@ -23,6 +25,8 @@ type ProviderConstructor<T extends keyof TypesMap> = new (request: InternalReque
 
 const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,
+  'paddle-classic': Paddle,
+  'paddle-billing': Paddle,
 };
 
 export class UnsupportedProviderError extends Error {
@@ -45,5 +49,10 @@ export function initialize(type: string, request: ProviderRequest, options?: Ini
   }
 
   const Provider = providers[type as keyof TypesMap];
-  return new Provider(request, resolveOptions(options));
+  const baseOptions = resolveOptions(options);
+  const mergedOptions: PaddleOptions = {
+    ...(typeof baseOptions === 'object' && baseOptions !== null ? baseOptions : {}),
+    kind: type as PaddleProviderKind,
+  };
+  return new Provider(request, mergedOptions);
 };

@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_transaction_billed",
+  "event_type": "transaction.billed",
+  "occurred_at": "2026-01-01T00:00:00Z",
+  "notification_id": "ntf_transaction_billed",
+  "data": {
+    "id": "txn_fixture",
+    "status": "paid",
+    "customer_id": "ctm_fixture",
+    "currency_code": "USD"
+  }
+}

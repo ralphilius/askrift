@@ -18,6 +18,8 @@ const PUBLIC_KEY_BODY = publicKey
   .replace(/\s+/g, '');
 
 process.env.PADDLE_PUBLIC_KEY = PUBLIC_KEY_BODY;
+const BILLING_WEBHOOK_SECRET = 'pdl_billing_test_secret';
+process.env.PADDLE_BILLING_WEBHOOK_SECRET = BILLING_WEBHOOK_SECRET;
 
 const baseReq: any = {
   query: {},
@@ -459,5 +461,501 @@ describe('request adapter falls back to rawBody', function () {
       rawBody: 'unused-raw-body',
     }));
     assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('Paddle Billing webhook support', function () {
+  const billingPayload = {
+    event_id: 'evt_test_1',
+    event_type: 'subscription.created',
+    occurred_at: '2026-01-01T00:00:00Z',
+    notification_id: 'ntf_test_1',
+    data: {
+      id: 'sub_test',
+      status: 'active',
+      customer_id: 'ctm_test',
+      currency_code: 'USD',
+    },
+  };
+
+  function signBilling(rawBody: string, ts: number = Math.floor(Date.now() / 1000)): string {
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    return `ts=${ts};h1=${h1}`;
+  }
+
+  function billingReq(method: string, body: string, signature?: string): any {
+    return {
+      query: {},
+      method,
+      headers: {
+        'content-type': 'application/json',
+        ...(signature ? { 'paddle-signature': signature } : {}),
+      },
+      body,
+    };
+  }
+
+  it('verifies a valid Billing HMAC signature', () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody)));
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('rejects Billing webhooks with an invalid HMAC signature', () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, 'ts=1;h1=deadbeef'));
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('rejects Billing webhooks with a missing paddle-signature header', () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody));
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('rejects Billing webhooks with an out-of-window timestamp (replay attack)', () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const stale = Math.floor(Date.now() / 1000) - (60 * 60);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, stale)));
+
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('exposes the parsed Billing event via onBillingEvent()', async () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody)));
+
+    assert.equal(paddle.validPayload(), true);
+    const event = await paddle.onBillingEvent();
+    assert.isNotNull(event);
+    assert.equal(event?.event_type, 'subscription.created');
+    assert.equal(event?.data.id, 'sub_test');
+  });
+
+  it('filters Billing events through onBillingSubscriptionEvent()', async () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody)));
+
+    const subscriptionEvent = await paddle.onBillingSubscriptionEvent();
+    assert.isNotNull(subscriptionEvent);
+    assert.equal((subscriptionEvent as any).event_type, 'subscription.created');
+
+    assert.isNull(await paddle.onBillingTransactionEvent());
+  });
+
+  it('filters Billing events through onBillingTransactionEvent()', async () => {
+    const transactionPayload = {
+      ...billingPayload,
+      event_id: 'evt_txn_1',
+      event_type: 'transaction.completed',
+      data: { id: 'txn_test', status: 'paid', customer_id: 'ctm_test', currency_code: 'USD' },
+    };
+    const rawBody = JSON.stringify(transactionPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody)));
+
+    const transactionEvent = await paddle.onBillingTransactionEvent();
+    assert.isNotNull(transactionEvent);
+    assert.equal((transactionEvent as any).event_type, 'transaction.completed');
+
+    assert.isNull(await paddle.onBillingSubscriptionEvent());
+  });
+
+  it('does not return Billing events from onClassicEvent()', async () => {
+    const rawBody = JSON.stringify(billingPayload);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody)));
+
+    assert.equal(paddle.validPayload(), true);
+    assert.isNull(await paddle.onClassicEvent());
+    assert.isNull(await paddle.onClassicSubscriptionEvent());
+  });
+
+  it('rejects Billing webhooks whose body cannot be located as a string or buffer', () => {
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': 'ts=1;h1=deadbeef',
+      },
+      body: { event_type: 'subscription.created' },
+    } as any);
+
+    assert.equal(paddle.validPayload(), false);
+  });
+});
+
+describe('paddle-billing allows initialization without PADDLE_PUBLIC_KEY', function () {
+  const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
+  const billingPayload = {
+    event_id: 'evt_billing_only',
+    event_type: 'subscription.created',
+    occurred_at: '2026-01-01T00:00:00Z',
+    notification_id: 'ntf_billing_only',
+    data: { id: 'sub_billing_only', status: 'active', customer_id: 'ctm_billing_only', currency_code: 'USD' },
+  };
+
+  after(() => {
+    if (previousPublicKey === undefined) {
+      delete process.env.PADDLE_PUBLIC_KEY;
+    } else {
+      process.env.PADDLE_PUBLIC_KEY = previousPublicKey;
+    }
+  });
+
+  it('initializes paddle-billing without PADDLE_PUBLIC_KEY', () => {
+    delete process.env.PADDLE_PUBLIC_KEY;
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any);
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('initializes paddle-billing with explicit options and no public key', () => {
+    delete process.env.PADDLE_PUBLIC_KEY;
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any, { debug: false });
+
+    assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('provider kind enforcement', function () {
+  it('rejects a Classic signed payload when initialized as paddle-billing', () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(createdPayload),
+    } as any);
+
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('rejects a Billing signed payload when initialized as paddle-classic', () => {
+    const billingPayload = {
+      event_id: 'evt_kind_test',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_kind_test', status: 'active' },
+    };
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle-classic', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any);
+
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('still accepts a Billing signed payload when initialized as the legacy paddle entry', () => {
+    const billingPayload = {
+      event_id: 'evt_legacy_billing',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_legacy_billing', status: 'active' },
+    };
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any);
+
+    assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('Billing signature tolerance matches the documented 5-second window', function () {
+  function billingReq(method: string, body: string, signature?: string): any {
+    return {
+      query: {},
+      method,
+      headers: {
+        'content-type': 'application/json',
+        ...(signature ? { 'paddle-signature': signature } : {}),
+      },
+      body,
+    };
+  }
+
+  function signBilling(rawBody: string, ts: number): string {
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    return `ts=${ts};h1=${h1}`;
+  }
+
+  const billingPayload = {
+    event_id: 'evt_window',
+    event_type: 'subscription.created',
+    occurred_at: '2026-01-01T00:00:00Z',
+    data: { id: 'sub_window', status: 'active' },
+  };
+  const rawBody = JSON.stringify(billingPayload);
+
+  it('accepts a Billing webhook with a current timestamp', () => {
+    const ts = Math.floor(Date.now() / 1000);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, ts)));
+
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('accepts a Billing webhook with a 4-second-old timestamp', () => {
+    const ts = Math.floor(Date.now() / 1000) - 4;
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, ts)));
+
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('rejects a Billing webhook with a 6-second-old timestamp', () => {
+    const ts = Math.floor(Date.now() / 1000) - 6;
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, ts)));
+
+    assert.equal(paddle.validPayload(), false);
+  });
+});
+
+describe('getRawBody recovers object bodies via JSON.stringify', function () {
+  function signBilling(rawBody: string, ts: number): string {
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    return `ts=${ts};h1=${h1}`;
+  }
+
+  it('verifies a Billing webhook whose body is a parsed object instead of a string', () => {
+    const billingPayload = {
+      event_id: 'evt_object_body',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_object_body', status: 'active' },
+    };
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': signBilling(rawBody, ts),
+      },
+      body: billingPayload,
+    } as any);
+
+    assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('Classic event aliases preserve paddle.* handler names', function () {
+  it('dispatches handlers registered with the legacy paddle.<alert> alias', async () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', JSON.stringify(createdPayload), 'application/json')));
+    let legacyCalls = 0;
+    let prefixedCalls = 0;
+
+    paddle.on('paddle.subscription_created', () => {
+      legacyCalls += 1;
+    });
+    paddle.on('paddle-classic.subscription_created', () => {
+      prefixedCalls += 1;
+    });
+
+    const result = await paddle.handle();
+    assert.equal(result.verified, true);
+    assert.equal(result.handled, true);
+    assert.equal(legacyCalls, 1);
+    assert.equal(prefixedCalls, 1);
+  });
+
+  it('still dispatches via the paddle.subscription_payment_succeeded README example', async () => {
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
+    let paymentHandlerCalled = 0;
+
+    askriftPd.on('paddle.subscription_payment_succeeded', () => {
+      paymentHandlerCalled += 1;
+    });
+
+    const result = await askriftPd.handle();
+    assert.equal(result.verified, true);
+    assert.equal(result.handled, true);
+    assert.equal(paymentHandlerCalled, 1);
+  });
+});
+
+describe('Paddle Classic event handlers', function () {
+  function classicReq(method: string, body: any, contentType: string = 'application/json'): any {
+    return {
+      query: {},
+      headers: { 'content-type': contentType },
+      method,
+      body,
+    };
+  }
+
+  it('exposes the parsed Classic alert via onClassicEvent()', async () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const paddle = initialize('paddle-classic', classicReq('POST', JSON.stringify(createdPayload)));
+
+    assert.equal(paddle.validPayload(), true);
+    const event = await paddle.onClassicEvent();
+    assert.isNotNull(event);
+    assert.equal((event as any).alert_name, 'subscription_created');
+  });
+
+  it('filters subscription alerts through onClassicSubscriptionEvent()', async () => {
+    const updatedPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_updated',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_updated' }),
+    };
+    const paddle = initialize('paddle-classic', classicReq('POST', JSON.stringify(updatedPayload)));
+
+    const event = await paddle.onClassicSubscriptionEvent();
+    assert.isNotNull(event);
+    assert.equal((event as any).alert_name, 'subscription_updated');
+
+    assert.isNull(await paddle.onBillingEvent());
+    assert.isNull(await paddle.onBillingSubscriptionEvent());
+  });
+
+  it('returns null from onClassicSubscriptionEvent() for subscription payment alerts', async () => {
+    const oneTimePayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_payment_succeeded',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_payment_succeeded' }),
+    };
+    const paddle = initialize('paddle-classic', classicReq('POST', JSON.stringify(oneTimePayload)));
+
+    const event = await paddle.onClassicEvent();
+    assert.isNotNull(event);
+    assert.isNull(await paddle.onClassicSubscriptionEvent());
+  });
+
+  it('does not return Classic alerts from onBillingEvent()', async () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const paddle = initialize('paddle-classic', classicReq('POST', JSON.stringify(createdPayload)));
+
+    assert.equal(paddle.validPayload(), true);
+    assert.isNull(await paddle.onBillingEvent());
+  });
+});
+
+describe('paddle-billing and paddle-classic provider entries', function () {
+  it('routes initialize("paddle-billing", req) through the provider registry', () => {
+    const rawBody = JSON.stringify({
+      event_id: 'evt_provider_test',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_provider_test', status: 'active' },
+    });
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const req = {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any;
+    const billing = initialize('paddle-billing', req);
+
+    assert.equal(billing.validRequest(), true);
+    assert.equal(billing.validPayload(), true);
+  });
+
+  it('routes initialize("paddle-classic", req) through the provider registry', () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const classic = initialize('paddle-classic', {
+      query: {},
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(createdPayload),
+    } as any);
+
+    assert.equal(classic.validRequest(), true);
+    assert.equal(classic.validPayload(), true);
   });
 });

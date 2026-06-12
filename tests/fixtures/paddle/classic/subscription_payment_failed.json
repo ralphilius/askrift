@@ -1,0 +1,14 @@
+{
+  "alert_id": "1007",
+  "alert_name": "subscription_payment_failed",
+  "amount": "30.00",
+  "attempt_number": "1",
+  "currency": "USD",
+  "email": "subscriber@example.com",
+  "event_time": "2026-01-01 00:00:06",
+  "next_retry_date": "2026-01-03",
+  "status": "past_due",
+  "subscription_id": "5001",
+  "subscription_payment_id": "7002",
+  "subscription_plan_id": "6002"
+}

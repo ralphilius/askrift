@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_subscription_past_due",
+  "event_type": "subscription.past_due",
+  "occurred_at": "2026-01-01T00:00:00Z",
+  "notification_id": "ntf_subscription_past_due",
+  "data": {
+    "id": "sub_fixture",
+    "status": "past_due",
+    "customer_id": "ctm_fixture",
+    "currency_code": "USD"
+  }
+}
