@@ -13,7 +13,7 @@ export type SubscriptionEventType = typeof SUBSCRIPTION_EVENT_TYPES[keyof typeof
 
 export interface NormalizedEventBase<TType extends SubscriptionEventType = SubscriptionEventType, TRaw = unknown> extends NormalizedWebhookEvent {
   type: TType;
-  provider: string;
+  provider: ProviderStatusMetadata;
   raw: TRaw;
   eventId?: string;
   occurredAt?: Date | string;
@@ -23,6 +23,9 @@ export interface NormalizedEventBase<TType extends SubscriptionEventType = Subsc
   customerEmail?: string;
   currency?: string;
   status?: string;
+  subscriptionStatus?: SubscriptionStatus;
+  previousSubscriptionStatus?: SubscriptionStatus;
+  paymentStatus?: PaymentStatus;
 }
 
 export interface NormalizedSubscriptionCreatedEvent<TRaw = unknown>

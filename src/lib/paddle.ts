@@ -411,9 +411,10 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     if (!type) return null;
 
     const normalizedRaw = normalizeWebhookEvent('paddle', body) as PaddlePayload & NormalizedWebhookEvent;
+    const normalized = normalizePaddlePayload(body);
     const base = {
+      ...normalized,
       type,
-      provider: 'paddle',
       raw: normalizedRaw,
       eventId: body.alert_id,
       occurredAt: toDate(body.event_time),
