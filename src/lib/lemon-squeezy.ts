@@ -38,7 +38,7 @@ function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
       ? (typeof attributes.refunded_amount === 'number' ? attributes.refunded_amount : (typeof attributes.total === 'number' ? attributes.total : null))
       : (typeof attributes.total === 'number' ? attributes.total : null),
     currency: attributes.currency || null,
-    occurredAt: attributes.created_at || attributes.updated_at || null,
+    occurredAt: attributes.updated_at || attributes.created_at || null,
     raw: payload,
   };
 }

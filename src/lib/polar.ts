@@ -47,7 +47,7 @@ function normalize(payload: PolarWebhookPayload, type: any) {
           ? data.total_amount
           : null,
     currency: data.currency || null,
-    occurredAt: data.created_at || data.modified_at || null,
+    occurredAt: data.modified_at || data.created_at || null,
     raw: payload,
   };
 }

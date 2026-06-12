@@ -278,6 +278,14 @@ describe('library works with paddle', function () {
   it('should trim whitespace-padded event IDs', () => {
     const padded = { ...paddlePaymentSucceededPayload, alert_id: '  120661188  ' };
     assert.equal(extractStableEventId('paddle', padded), '120661188');
+  it('should handle subscription_paused alerts', async () => {
+    const pausedBody = { ...payload, alert_name: 'subscription_paused' };
+    const req = createReq('POST', signedPayload(pausedBody));
+    const askriftPaused: Askrift<'paddle'> = initialize('paddle', req);
+    assert.equal(askriftPaused.validPayload(), true);
+    const event = await askriftPaused.onSubscriptionPaused();
+    assert.isNotNull(event);
+    assert.equal((event as any)?.alert_name, 'subscription_paused');
   });
 
   it('should not pass invalid request', (done) => {
