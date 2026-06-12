@@ -110,6 +110,7 @@ export default abstract class Askrift<Events extends ProviderEventMap | string =
       ...(errors.length > 0 ? { errors } : {}),
     };
   }
+
   public debug(msg: any, ...optionalParams: any[]) {
     if (this._debug) console.log(msg, ...optionalParams);
   }

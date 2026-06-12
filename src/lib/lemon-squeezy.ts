@@ -8,6 +8,7 @@ import {
   LemonSqueezyPaymentSucceeded,
   LemonSqueezySubscriptionCancelled,
   LemonSqueezySubscriptionCreated,
+  LemonSqueezySubscriptionPaused,
   LemonSqueezySubscriptionUpdated,
   LemonSqueezyWebhookPayload,
 } from '../types/lemon-squeezy/subscription';
@@ -67,7 +68,7 @@ export default class LemonSqueezy extends Askrift<'lemon-squeezy'> {
   onSubscriptionCanceled(): Promise<LemonSqueezySubscriptionCancelled | null> {
     return promisify(this._req, EVENT_MAP.canceled, 'subscription.canceled');
   }
-  onSubscriptionPaused(): Promise<LemonSqueezySubscriptionCancelled | null> {
+  onSubscriptionPaused(): Promise<LemonSqueezySubscriptionPaused | null> {
     return promisify(this._req, EVENT_MAP.paused, 'subscription.paused');
   }
   onSubscriptionUpdated(): Promise<LemonSqueezySubscriptionUpdated | null> {
