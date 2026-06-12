@@ -1,4 +1,4 @@
-import Askrift, { initialize, UnsupportedProviderError } from '../src';
+import { initialize, Paddle, UnsupportedProviderError } from '../src';
 import * as crypto from 'crypto';
 import { serialize } from 'php-serialize';
 import { assert } from 'chai';
@@ -127,9 +127,9 @@ const urlEncodedReq = {
 
 describe('library works with paddle', function () {
   const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
-  let askriftPd: Askrift<'paddle'>;
-  let askriftBadPd: Askrift<'paddle'>;
-  let askriftUrlEncodedPd: Askrift<'paddle'>;
+  let askriftPd: Paddle;
+  let askriftBadPd: Paddle;
+  let askriftUrlEncodedPd: Paddle;
 
   after(() => {
     if (previousPublicKey === undefined) {

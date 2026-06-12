@@ -8,7 +8,7 @@ export { Paddle };
 export { verifyPaddleSignature } from "./lib/paddle";
 export { AskriftEventContext, AskriftEventHandler, AskriftHandleResult, AskriftParsedEvent };
 export * from "./types/events";
-export type { PaddleSubscriptionEvents } from "./lib/paddle";
+export type { PaddleOptions, PaddleSubscriptionEvents } from "./lib/paddle";
 
 export type TypesMap = {
   paddle: Paddle;
@@ -17,7 +17,7 @@ export type TypesMap = {
 export type InitializeOptions = PaddleOptions;
 
 type ProviderRequest = VercelRequest | Request;
-type ProviderConstructor<T extends keyof TypesMap> = new (request: ProviderRequest, options?: PaddleOptions | boolean) => Askrift<T>;
+type ProviderConstructor<T extends keyof TypesMap> = new (request: ProviderRequest, options?: PaddleOptions | boolean) => TypesMap[T];
 
 const providers: { [T in keyof TypesMap]: ProviderConstructor<T> } = {
   paddle: Paddle,
@@ -36,8 +36,8 @@ function resolveOptions(options?: InitializeOptions | boolean): PaddleOptions | 
   return options;
 }
 
-export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<T>;
-export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): Askrift<keyof TypesMap> {
+export function initialize<T extends keyof TypesMap>(type: T, request: ProviderRequest, options?: InitializeOptions | boolean): TypesMap[T];
+export function initialize(type: string, request: ProviderRequest, options?: InitializeOptions | boolean): TypesMap[keyof TypesMap] {
   if (!Object.prototype.hasOwnProperty.call(providers, type)) {
     throw new UnsupportedProviderError(type);
   }

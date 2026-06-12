@@ -28,6 +28,9 @@ export type PaddleOptions = {
 };
 
 function normalizePublicKey(publicKey: string): string {
+  if (!publicKey || !publicKey.trim()) {
+    throw new Error("Public key cannot be empty");
+  }
   const normalized = publicKey.replace(/\\n/g, '\n');
   if (normalized.includes('-----BEGIN PUBLIC KEY-----')) {
     return normalized;
@@ -146,7 +149,7 @@ export default class Paddle extends Askrift<PaddleSubscriptionEvents> {
     super(paddleOptions.debug);
 
     const publicKey = paddleOptions.publicKey || process.env.PADDLE_PUBLIC_KEY;
-    if (!publicKey) throw "PADDLE_PUBLIC_KEY is required";
+    if (!publicKey) throw new Error("Paddle public key is required (provide via options.publicKey or PADDLE_PUBLIC_KEY environment variable)");
 
     this._req = req;
     this._pubKey = normalizePublicKey(publicKey);
