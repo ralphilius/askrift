@@ -4,6 +4,7 @@ export type NormalizedEventType =
   | 'subscription.created'
   | 'subscription.updated'
   | 'subscription.canceled'
+  | 'subscription.paused'
   | 'payment.succeeded'
   | 'payment.failed'
   | 'payment.refunded';
