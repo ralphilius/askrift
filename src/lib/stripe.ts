@@ -223,9 +223,12 @@ export default class Stripe extends Askrift<"stripe"> {
   }
 
   private async eventForType<T extends StripeSupportedEvent>(type: StripeSupportedEventType): Promise<T | null> {
-    const rawBody = rawBodyFromRequest(this._req);
-    if (!rawBody) throw new Error("Invalid Stripe body");
-    const event = JSON.parse(rawBody) as StripeEvent;
-    return event.type === type ? (event as T) : null;
+    try {
+      const event = this.parseEvent();
+      return event.type === type ? (event as T) : null;
+    } catch (error) {
+      this.debug(error);
+      return null;
+    }
   }
 }
