@@ -41,8 +41,8 @@ function promisify<T>(req: any, eventNames: string[], type: any, requireSubscrip
   return new Promise((resolve, reject) => {
     try {
       const payload = parseBody<GumroadWebhookPayload>(req);
-      const resource = payload.resource_name || getHeader(req.headers, 'x-gumroad-resource-name');
-      const matches = !resource || eventNames.includes(resource) && (!requireSubscription || Boolean(payload.subscription_id));
+      const resource: string | undefined = payload.resource_name || getHeader(req.headers, 'x-gumroad-resource-name');
+      const matches = !!resource && eventNames.includes(resource) && (!requireSubscription || Boolean(payload.subscription_id));
       resolve(matches ? normalize(payload, type) as unknown as T : null);
     } catch (error) {
       reject(error);
@@ -84,7 +84,7 @@ export default class Gumroad extends Askrift<'gumroad'> {
   }
   validPayload(): boolean {
     const signature = getHeader(this._req.headers, 'x-gumroad-signature') || getHeader(this._req.headers, 'x-signature');
-    if (!signature) return true;
+    if (!signature) return false;
     const expected = hmacSha256Hex(this._secret, getRawBody(this._req));
     return timingSafeEqualString(signature, expected);
   }

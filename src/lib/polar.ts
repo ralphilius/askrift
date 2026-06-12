@@ -15,13 +15,15 @@ import {
 const POLAR_TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
 
 const EVENT_MAP = {
-  created: ['subscription.created', 'subscription.active'],
-  updated: ['subscription.updated', 'subscription.uncanceled'],
+  created: ['subscription.created'],
+  updated: ['subscription.updated', 'subscription.uncanceled', 'subscription.active'],
   canceled: ['subscription.canceled', 'subscription.revoked'],
   paymentSucceeded: ['order.paid'],
   paymentFailed: ['subscription.past_due'],
   paymentRefunded: ['order.refunded', 'refund.created', 'refund.updated'],
 };
+
+const REFUND_COMPLETED_STATUSES = new Set(['succeeded', 'refunded', 'paid']);
 
 function normalize(payload: PolarWebhookPayload, type: any) {
   const data = payload.data || {};
@@ -40,11 +42,25 @@ function normalize(payload: PolarWebhookPayload, type: any) {
   };
 }
 
-function promisify<T>(req: any, eventNames: string[], type: any): Promise<T | null> {
+function isRefundCompleted(payload: PolarWebhookPayload): boolean {
+  const status = (payload.data as any)?.status;
+  if (typeof status !== 'string') return true;
+  return REFUND_COMPLETED_STATUSES.has(status.toLowerCase());
+}
+
+function promisify<T>(req: any, eventNames: string[], type: any, requireRefundCompleted = false): Promise<T | null> {
   return new Promise((resolve, reject) => {
     try {
       const payload = parseBody<PolarWebhookPayload>(req);
-      resolve(eventNames.includes(payload.type || '') ? normalize(payload, type) as unknown as T : null);
+      if (!eventNames.includes(payload.type || '')) {
+        resolve(null);
+        return;
+      }
+      if (requireRefundCompleted && !isRefundCompleted(payload)) {
+        resolve(null);
+        return;
+      }
+      resolve(normalize(payload, type) as unknown as T);
     } catch (error) {
       reject(error);
     }
@@ -67,7 +83,7 @@ export default class Polar extends Askrift<'polar'> {
   onSubscriptionUpdated(): Promise<PolarSubscriptionUpdated | null> { return promisify(this._req, EVENT_MAP.updated, 'subscription.updated'); }
   onPaymentSucceeded(): Promise<PolarPaymentSucceeded | null> { return promisify(this._req, EVENT_MAP.paymentSucceeded, 'payment.succeeded'); }
   onPaymentFailed(): Promise<PolarPaymentFailed | null> { return promisify(this._req, EVENT_MAP.paymentFailed, 'payment.failed'); }
-  onPaymentRefunded(): Promise<PolarPaymentRefunded | null> { return promisify(this._req, EVENT_MAP.paymentRefunded, 'payment.refunded'); }
+  onPaymentRefunded(): Promise<PolarPaymentRefunded | null> { return promisify(this._req, EVENT_MAP.paymentRefunded, 'payment.refunded', true); }
   validRequest(): boolean { return isPostJsonOrForm(this._req); }
   validPayload(): boolean {
     const id = getHeader(this._req.headers, 'webhook-id');

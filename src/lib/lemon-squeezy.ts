@@ -15,8 +15,9 @@ import {
 const EVENT_MAP = {
   created: ['subscription_created'],
   updated: ['subscription_updated', 'subscription_resumed', 'subscription_unpaused'],
-  canceled: ['subscription_cancelled', 'subscription_expired', 'subscription_paused'],
-  paymentSucceeded: ['order_created', 'subscription_payment_success'],
+  canceled: ['subscription_cancelled', 'subscription_expired'],
+  paused: ['subscription_paused'],
+  paymentSucceeded: ['subscription_payment_success'],
   paymentFailed: ['subscription_payment_failed'],
   paymentRefunded: ['order_refunded', 'refund_created', 'subscription_payment_refunded'],
 };
@@ -29,7 +30,7 @@ function normalize(payload: LemonSqueezyWebhookPayload, type: any) {
     id: payload.data?.id,
     subscriptionId: attributes.subscription_id != null ? String(attributes.subscription_id) : (payload.data?.type === 'subscriptions' ? payload.data?.id || null : null),
     customerId: attributes.customer_id == null ? null : String(attributes.customer_id),
-    customerEmail: attributes.customer_email || null,
+    customerEmail: (attributes as any).user_email || attributes.customer_email || null,
     productId: attributes.product_id == null ? null : String(attributes.product_id),
     amount: typeof attributes.total === 'number' ? attributes.total : null,
     currency: attributes.currency || null,
@@ -65,6 +66,9 @@ export default class LemonSqueezy extends Askrift<'lemon-squeezy'> {
   }
   onSubscriptionCanceled(): Promise<LemonSqueezySubscriptionCancelled | null> {
     return promisify(this._req, EVENT_MAP.canceled, 'subscription.canceled');
+  }
+  onSubscriptionPaused(): Promise<LemonSqueezySubscriptionCancelled | null> {
+    return promisify(this._req, EVENT_MAP.paused, 'subscription.paused');
   }
   onSubscriptionUpdated(): Promise<LemonSqueezySubscriptionUpdated | null> {
     return promisify(this._req, EVENT_MAP.updated, 'subscription.updated');

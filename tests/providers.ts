@@ -129,4 +129,113 @@ describe('provider lifecycle fixtures', function () {
       assert.equal((await (initialize('polar', eventReq) as any)[handler]()).type, expectedType);
     }
   });
+
+  it('rejects Gumroad payloads without a signature header', () => {
+    const saleBody = {
+      resource_name: 'sale',
+      sale_id: 'sale_123',
+    };
+    const req = jsonReq(saleBody);
+    const gumroad = initialize('gumroad', req);
+    assert.equal(gumroad.validPayload(), false);
+  });
+
+  it('does not match Gumroad handlers when resource_name is absent', async () => {
+    const req = jsonReq({ sale_id: 'sale_123' });
+    req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
+    const gumroad = initialize('gumroad', req);
+    assert.equal(await gumroad.onPaymentSucceeded(), null);
+    assert.equal(await gumroad.onSubscriptionCreated(), null);
+  });
+
+  it('honors requireSubscription flag for Gumroad even when no resource matches', async () => {
+    const req = jsonReq({ resource_name: 'sale', sale_id: 'sale_123' });
+    req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
+    const gumroad = initialize('gumroad', req);
+    assert.equal(await gumroad.onSubscriptionCreated(), null);
+    assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_123');
+  });
+
+  it('treats Lemon Squeezy subscription_paused as paused, not canceled', async () => {
+    const base = {
+      meta: { event_name: 'subscription_paused' },
+      data: {
+        id: 'sub_123',
+        type: 'subscriptions',
+        attributes: { user_email: 'buyer@example.com' },
+      },
+    };
+    const req = jsonReq(base);
+    req.headers['x-signature'] = hmacHex(process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!, req.rawBody);
+    const lemon = initialize('lemon-squeezy', req) as any;
+    assert.equal((await lemon.onSubscriptionCanceled()), null);
+    assert.equal((await lemon.onSubscriptionPaused())?.type, 'subscription.paused');
+  });
+
+  it('reads Lemon Squeezy email from attributes.user_email', async () => {
+    const base = {
+      meta: { event_name: 'subscription_created' },
+      data: {
+        id: 'sub_123',
+        type: 'subscriptions',
+        attributes: {
+          user_email: 'sub-user@example.com',
+          customer_email: 'customer@example.com',
+        },
+      },
+    };
+    const req = jsonReq(base);
+    req.headers['x-signature'] = hmacHex(process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!, req.rawBody);
+    const lemon = initialize('lemon-squeezy', req);
+    assert.equal((await lemon.onSubscriptionCreated())?.customerEmail, 'sub-user@example.com');
+  });
+
+  it('does not double-count Lemon Squeezy order_created as a subscription payment success', async () => {
+    const base = {
+      meta: { event_name: 'order_created' },
+      data: {
+        id: 'order_123',
+        type: 'orders',
+        attributes: { user_email: 'buyer@example.com' },
+      },
+    };
+    const req = jsonReq(base);
+    req.headers['x-signature'] = hmacHex(process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!, req.rawBody);
+    const lemon = initialize('lemon-squeezy', req);
+    assert.equal(await lemon.onPaymentSucceeded(), null);
+  });
+
+  it('treats Polar subscription.active as an update, not a new subscription', async () => {
+    const id = 'msg_456';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const base = {
+      type: 'subscription.active',
+      data: { id: 'sub_456', customer_id: 'cus_456' },
+    };
+    const req = jsonReq(base, { 'webhook-id': id, 'webhook-timestamp': timestamp });
+    req.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, req.rawBody);
+    const polar = initialize('polar', req);
+    assert.equal(await polar.onSubscriptionCreated(), null);
+    assert.equal((await polar.onSubscriptionUpdated())?.type, 'subscription.updated');
+  });
+
+  it('ignores Polar refund events while the refund is still pending', async () => {
+    const id = 'msg_789';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const pending = {
+      type: 'refund.created',
+      data: { id: 'ref_1', status: 'pending' },
+    };
+    const pendingReq = jsonReq(pending, { 'webhook-id': id, 'webhook-timestamp': timestamp });
+    pendingReq.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, pendingReq.rawBody);
+    assert.equal(await initialize('polar', pendingReq).onPaymentRefunded(), null);
+
+    const succeeded = {
+      type: 'refund.updated',
+      data: { id: 'ref_2', status: 'succeeded' },
+    };
+    const okReq = jsonReq(succeeded, { 'webhook-id': id, 'webhook-timestamp': timestamp });
+    okReq.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, okReq.rawBody);
+    assert.equal((await initialize('polar', okReq).onPaymentRefunded())?.type, 'payment.refunded');
+  });
 });
