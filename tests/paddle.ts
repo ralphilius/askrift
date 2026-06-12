@@ -593,6 +593,261 @@ describe('Paddle Billing webhook support', function () {
   });
 });
 
+describe('paddle-billing allows initialization without PADDLE_PUBLIC_KEY', function () {
+  const previousPublicKey = process.env.PADDLE_PUBLIC_KEY;
+  const billingPayload = {
+    event_id: 'evt_billing_only',
+    event_type: 'subscription.created',
+    occurred_at: '2026-01-01T00:00:00Z',
+    notification_id: 'ntf_billing_only',
+    data: { id: 'sub_billing_only', status: 'active', customer_id: 'ctm_billing_only', currency_code: 'USD' },
+  };
+
+  after(() => {
+    if (previousPublicKey === undefined) {
+      delete process.env.PADDLE_PUBLIC_KEY;
+    } else {
+      process.env.PADDLE_PUBLIC_KEY = previousPublicKey;
+    }
+  });
+
+  it('initializes paddle-billing without PADDLE_PUBLIC_KEY', () => {
+    delete process.env.PADDLE_PUBLIC_KEY;
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any);
+
+    assert.equal(paddle.validRequest(), true);
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('initializes paddle-billing with explicit options and no public key', () => {
+    delete process.env.PADDLE_PUBLIC_KEY;
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any, { debug: false });
+
+    assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('provider kind enforcement', function () {
+  it('rejects a Classic signed payload when initialized as paddle-billing', () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(createdPayload),
+    } as any);
+
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('rejects a Billing signed payload when initialized as paddle-classic', () => {
+    const billingPayload = {
+      event_id: 'evt_kind_test',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_kind_test', status: 'active' },
+    };
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle-classic', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any);
+
+    assert.equal(paddle.validPayload(), false);
+  });
+
+  it('still accepts a Billing signed payload when initialized as the legacy paddle entry', () => {
+    const billingPayload = {
+      event_id: 'evt_legacy_billing',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_legacy_billing', status: 'active' },
+    };
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    const paddle = initialize('paddle', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': `ts=${ts};h1=${h1}`,
+      },
+      body: rawBody,
+    } as any);
+
+    assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('Billing signature tolerance matches the documented 5-second window', function () {
+  function billingReq(method: string, body: string, signature?: string): any {
+    return {
+      query: {},
+      method,
+      headers: {
+        'content-type': 'application/json',
+        ...(signature ? { 'paddle-signature': signature } : {}),
+      },
+      body,
+    };
+  }
+
+  function signBilling(rawBody: string, ts: number): string {
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    return `ts=${ts};h1=${h1}`;
+  }
+
+  const billingPayload = {
+    event_id: 'evt_window',
+    event_type: 'subscription.created',
+    occurred_at: '2026-01-01T00:00:00Z',
+    data: { id: 'sub_window', status: 'active' },
+  };
+  const rawBody = JSON.stringify(billingPayload);
+
+  it('accepts a Billing webhook with a current timestamp', () => {
+    const ts = Math.floor(Date.now() / 1000);
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, ts)));
+
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('accepts a Billing webhook with a 4-second-old timestamp', () => {
+    const ts = Math.floor(Date.now() / 1000) - 4;
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, ts)));
+
+    assert.equal(paddle.validPayload(), true);
+  });
+
+  it('rejects a Billing webhook with a 6-second-old timestamp', () => {
+    const ts = Math.floor(Date.now() / 1000) - 6;
+    const paddle = initialize('paddle-billing', billingReq('POST', rawBody, signBilling(rawBody, ts)));
+
+    assert.equal(paddle.validPayload(), false);
+  });
+});
+
+describe('getRawBody recovers object bodies via JSON.stringify', function () {
+  function signBilling(rawBody: string, ts: number): string {
+    const h1 = crypto
+      .createHmac('sha256', BILLING_WEBHOOK_SECRET)
+      .update(`${ts}:${rawBody}`)
+      .digest('hex');
+    return `ts=${ts};h1=${h1}`;
+  }
+
+  it('verifies a Billing webhook whose body is a parsed object instead of a string', () => {
+    const billingPayload = {
+      event_id: 'evt_object_body',
+      event_type: 'subscription.created',
+      occurred_at: '2026-01-01T00:00:00Z',
+      data: { id: 'sub_object_body', status: 'active' },
+    };
+    const rawBody = JSON.stringify(billingPayload);
+    const ts = Math.floor(Date.now() / 1000);
+    const paddle = initialize('paddle-billing', {
+      query: {},
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'paddle-signature': signBilling(rawBody, ts),
+      },
+      body: billingPayload,
+    } as any);
+
+    assert.equal(paddle.validPayload(), true);
+  });
+});
+
+describe('Classic event aliases preserve paddle.* handler names', function () {
+  it('dispatches handlers registered with the legacy paddle.<alert> alias', async () => {
+    const createdPayload = {
+      ...validPayloadWithoutSignature,
+      alert_name: 'subscription_created',
+      p_signature: signPayload({ ...validPayloadWithoutSignature, alert_name: 'subscription_created' }),
+    };
+    const paddle = initialize('paddle', fromVercel(reqFor('POST', JSON.stringify(createdPayload), 'application/json')));
+    let legacyCalls = 0;
+    let prefixedCalls = 0;
+
+    paddle.on('paddle.subscription_created', () => {
+      legacyCalls += 1;
+    });
+    paddle.on('paddle-classic.subscription_created', () => {
+      prefixedCalls += 1;
+    });
+
+    const result = await paddle.handle();
+    assert.equal(result.verified, true);
+    assert.equal(result.handled, true);
+    assert.equal(legacyCalls, 1);
+    assert.equal(prefixedCalls, 1);
+  });
+
+  it('still dispatches via the paddle.subscription_payment_succeeded README example', async () => {
+    const askriftPd = initialize('paddle', fromVercel(createReq('POST')));
+    let paymentHandlerCalled = 0;
+
+    askriftPd.on('paddle.subscription_payment_succeeded', () => {
+      paymentHandlerCalled += 1;
+    });
+
+    const result = await askriftPd.handle();
+    assert.equal(result.verified, true);
+    assert.equal(result.handled, true);
+    assert.equal(paymentHandlerCalled, 1);
+  });
+});
+
 describe('Paddle Classic event handlers', function () {
   function classicReq(method: string, body: any, contentType: string = 'application/json'): any {
     return {
