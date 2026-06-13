@@ -4,10 +4,9 @@ import { SUBSCRIPTION_EVENT_TYPES } from "../types/events";
 import type { NormalizedSubscriptionEvent, SubscriptionEventType } from "../types/events";
 import { fromRaw } from "./request";
 import type { InternalRequest } from "./request";
-import { extractStableEventId, isEventFresh } from "./idempotency";
+import { extractEventTimestamp, extractStableEventId, isEventFresh } from "./idempotency";
 import type { EventTimestampValidationOptions, NormalizedWebhookEvent } from "./idempotency";
 import type {
-  NormalizedStripeEvent,
   StripeCustomerSubscriptionCreatedEvent,
   StripeCustomerSubscriptionDeletedEvent,
   StripeCustomerSubscriptionUpdatedEvent,
@@ -168,29 +167,53 @@ export default class Stripe extends Askrift<"stripe"> {
     const object = supportedEvent.data.object;
     const normalizedType = NORMALIZED_TYPE_MAP[supportedEvent.type];
 
-    return {
+    const eventDate = new Date(supportedEvent.created * 1000);
+    const baseEvent: Record<string, unknown> = {
       type: normalizedType,
       provider: "stripe",
       eventId: supportedEvent.id,
       eventType: supportedEvent.type,
-      occurredAt: new Date(supportedEvent.created * 1000),
+      occurredAt: eventDate,
       customerId: objectId((object as StripeSubscription | StripeInvoice).customer),
       subscriptionId: subscriptionIdFromEvent(supportedEvent),
       invoiceId: invoiceIdFromEvent(supportedEvent),
       raw: supportedEvent,
-    } as unknown as NormalizedSubscriptionEvent;
+    };
+    Object.defineProperties(baseEvent, {
+      getIdempotencyKey: {
+        configurable: true,
+        enumerable: false,
+        value: () => {
+          const eventId = extractStableEventId("stripe", supportedEvent);
+          return eventId ? `stripe:${eventId}` : null;
+        },
+      },
+      getEventTimestamp: {
+        configurable: true,
+        enumerable: false,
+        value: () => extractEventTimestamp("stripe", supportedEvent),
+      },
+      isFresh: {
+        configurable: true,
+        enumerable: false,
+        value: (options: EventTimestampValidationOptions) =>
+          isEventFresh("stripe", supportedEvent, options),
+      },
+    });
+    return baseEvent as unknown as NormalizedSubscriptionEvent<unknown>;
   }
 
   getIdempotencyKey(): string | null {
     if (!this.verify()) return null;
     const event = this.parseStripeEvent();
-    return extractStableEventId("stripe", event);
+    const eventId = extractStableEventId("stripe", event);
+    return eventId ? `stripe:${eventId}` : null;
   }
 
   getEventTimestamp(): Date | null {
     if (!this.verify()) return null;
     const event = this.parseStripeEvent();
-    return new Date(event.created * 1000);
+    return extractEventTimestamp("stripe", event);
   }
 
   isFresh(options: EventTimestampValidationOptions): boolean | null {
@@ -201,6 +224,20 @@ export default class Stripe extends Askrift<"stripe"> {
 
   isSupportedEventType(type: string): boolean {
     return isStripeSupportedEventType(type);
+  }
+
+  protected parseProviderEvent(): import("./askrift").AskriftParsedEvent | null {
+    if (!this.verify()) return null;
+    const event = this.parseStripeEvent();
+    if (!isStripeSupportedEventType(event.type)) return null;
+    const normalizedType = NORMALIZED_TYPE_MAP[event.type];
+    return {
+      eventType: normalizedType,
+      payload: event as unknown as import("./askrift").AskriftParsedEvent["payload"],
+      provider: "stripe",
+      providerEventType: event.type,
+      aliases: [event.type],
+    };
   }
 
   verifySignature(toleranceInSeconds: number = 300): boolean {

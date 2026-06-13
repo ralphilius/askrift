@@ -8,7 +8,7 @@ export type StripeSupportedEventType =
 export type StripeNormalizedEventType =
   | "subscription.created"
   | "subscription.updated"
-  | "subscription.deleted"
+  | "subscription.cancelled"
   | "payment.succeeded"
   | "payment.failed";
 
@@ -97,16 +97,3 @@ export type StripeSupportedEvent =
   | StripeCustomerSubscriptionDeletedEvent
   | StripeInvoicePaymentSucceededEvent
   | StripeInvoicePaymentFailedEvent;
-
-export interface NormalizedStripeEvent<T = any> {
-  provider: "stripe";
-  type: StripeNormalizedEventType;
-  eventId: string;
-  eventType: StripeSupportedEventType;
-  created: Date;
-  customerId: string | null;
-  subscriptionId: string | null;
-  invoiceId: string | null;
-  data: T;
-  raw: StripeSupportedEvent;
-}

@@ -32,10 +32,12 @@ const PROVIDER_CONFIG: Record<WebhookProvider, ProviderConfig> = {
   paddle: {
     idFields: ['alert_id'],
     timestampFields: ['event_time'],
+    parseTimestamp: parsePaddleTimestamp,
   },
   stripe: {
     idFields: ['id'],
     timestampFields: ['created'],
+    parseTimestamp: parseUnixSecondsTimestamp,
   },
   gumroad: {
     idFields: ['id'],
@@ -67,6 +69,22 @@ function parsePaddleTimestamp(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function parseUnixSecondsTimestamp(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(value * 1000);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      const date = new Date(numeric * 1000);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+  return null;
+}
+
 function coerceNow(now: Date | number | undefined): number {
   if (now instanceof Date) return now.getTime();
   if (typeof now === 'number') return now;
@@ -92,9 +110,10 @@ export function extractEventTimestamp(provider: WebhookProvider, payload: unknow
 
   for (const field of PROVIDER_CONFIG[provider].timestampFields) {
     const value = parsedPayload[field];
+    const customParser = PROVIDER_CONFIG[provider].parseTimestamp;
     let timestamp: Date | null = null;
-    if (provider === 'paddle') {
-      timestamp = parsePaddleTimestamp(value);
+    if (customParser) {
+      timestamp = customParser(value);
     } else if (typeof value === 'string' || typeof value === 'number') {
       const date = new Date(value);
       timestamp = Number.isNaN(date.getTime()) ? null : date;
