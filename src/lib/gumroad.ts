@@ -69,10 +69,21 @@ function isTruthyRecurring(value: unknown): boolean {
 function getEventTypeForPayload(payload: GumroadWebhookPayload): SubscriptionEventType | null {
   const resource: string | undefined = payload.resource_name;
   if (!resource) return null;
+  const matches: SubscriptionEventType[] = [];
   for (const [type, names] of Object.entries(EVENT_MAP)) {
-    if (names.includes(resource)) return type as SubscriptionEventType;
+    if (names.includes(resource)) matches.push(type as SubscriptionEventType);
   }
-  return null;
+  if (matches.length === 0) return null;
+  if (matches.length > 1) {
+    if (resource === 'sale') {
+      if (isTruthyRecurring(payload.recurring) || !payload.subscription_id) {
+        return SUBSCRIPTION_EVENT_TYPES.PaymentSucceeded;
+      }
+      return SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated;
+    }
+    return null;
+  }
+  return matches[0];
 }
 
 function matchesEvent(
@@ -123,7 +134,9 @@ export default class Gumroad extends Askrift<'gumroad'> {
     super(gumroadOptions.debug);
     this._secret = process.env.GUMROAD_WEBHOOK_SECRET || '';
     this._requireSignature = gumroadOptions.requireSignature === true;
-    if (!this._secret) throw new Error('GUMROAD_WEBHOOK_SECRET is required');
+    if (this._requireSignature && !this._secret) {
+      throw new Error('GUMROAD_WEBHOOK_SECRET is required when requireSignature is true');
+    }
     this._req = fromRaw(req);
   }
 

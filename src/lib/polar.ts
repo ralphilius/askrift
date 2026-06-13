@@ -133,10 +133,11 @@ export default class Polar extends Askrift<'polar'> {
     const type = getEventTypeForPayload(payload);
     if (!type) return null;
     const data = payload.data || {};
+    const webhookId = getHeader(this._req.headers, 'webhook-id');
     return {
       type,
       provider: 'polar',
-      eventId: data.id,
+      eventId: webhookId || data.id || null,
       subscriptionId: data.subscription_id || (payload.type?.startsWith('subscription.') ? data.id : null) || null,
       customerId: data.customer_id || data.customer?.id || null,
       customerEmail: data.customer?.email || null,
