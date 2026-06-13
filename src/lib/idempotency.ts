@@ -57,6 +57,17 @@ function asPayload(payload: unknown): Record<string, any> | null {
   return isObject(payload) && !Array.isArray(payload) ? payload as Record<string, any> : null;
 }
 
+function resolvePath(target: unknown, path: string | string[]): unknown {
+  const segments = Array.isArray(path) ? path : [path];
+  let current: unknown = target;
+  for (const segment of segments) {
+    if (current === undefined || current === null) return undefined;
+    if (typeof current !== 'object') return undefined;
+    current = (current as Record<string, any>)[segment];
+  }
+  return current;
+}
+
 function parsePaddleTimestamp(value: unknown): Date | null {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   if (typeof value !== 'string' || value.trim() === '') return null;
@@ -96,7 +107,7 @@ export function extractStableEventId(provider: WebhookProvider, payload: unknown
   if (!parsedPayload) return null;
 
   for (const field of PROVIDER_CONFIG[provider].idFields) {
-    const value = parsedPayload[field];
+    const value = resolvePath(parsedPayload, field);
     if (typeof value === 'string' && value.trim() !== '') return value.trim();
     if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   }
@@ -109,7 +120,7 @@ export function extractEventTimestamp(provider: WebhookProvider, payload: unknow
   if (!parsedPayload) return null;
 
   for (const field of PROVIDER_CONFIG[provider].timestampFields) {
-    const value = parsedPayload[field];
+    const value = resolvePath(parsedPayload, field);
     const customParser = PROVIDER_CONFIG[provider].parseTimestamp;
     let timestamp: Date | null = null;
     if (customParser) {

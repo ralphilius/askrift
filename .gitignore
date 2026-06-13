@@ -105,6 +105,3 @@ dist
 
 # Worktrees
 .worktrees/
-
->>>>>>> 02652ed (chore: ignore .worktrees directory)
----
