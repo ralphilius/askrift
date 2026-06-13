@@ -55,7 +55,9 @@ export function initialize(type: string, request: ProviderRequest, options?: Ini
 
   const Provider = providers[type as keyof TypesMap];
   const baseOptions = resolveOptions(options);
+  const debugOption = typeof baseOptions === 'boolean' ? { debug: baseOptions } : {};
   const mergedOptions: PaddleOptions & Partial<StripeOptions> = {
+    ...debugOption,
     ...(typeof baseOptions === 'object' && baseOptions !== null ? baseOptions : {}),
     ...(type === 'stripe' ? {} : { kind: type as PaddleProviderKind }),
   };
