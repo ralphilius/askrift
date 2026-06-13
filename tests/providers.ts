@@ -130,14 +130,24 @@ describe('provider lifecycle fixtures', function () {
     }
   });
 
-  it('rejects Gumroad payloads without a signature header', () => {
+  it('rejects Gumroad payloads without a signature header when requireSignature is true', () => {
+    const saleBody = {
+      resource_name: 'sale',
+      sale_id: 'sale_123',
+    };
+    const req = jsonReq(saleBody);
+    const gumroad = initialize('gumroad', req, { requireSignature: true } as any);
+    assert.equal(gumroad.validPayload(), false);
+  });
+
+  it('accepts unsigned Gumroad payloads by default (real Gumroad does not send signatures)', () => {
     const saleBody = {
       resource_name: 'sale',
       sale_id: 'sale_123',
     };
     const req = jsonReq(saleBody);
     const gumroad = initialize('gumroad', req);
-    assert.equal(gumroad.validPayload(), false);
+    assert.equal(gumroad.validPayload(), true);
   });
 
   it('does not match Gumroad handlers when resource_name is absent', async () => {

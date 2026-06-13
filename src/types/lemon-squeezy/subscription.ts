@@ -22,6 +22,7 @@ export interface LemonSqueezyWebhookPayload {
       currency?: string;
       created_at?: string;
       updated_at?: string;
+      status?: string;
       [key: string]: unknown;
     };
     [key: string]: unknown;

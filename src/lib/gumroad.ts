@@ -26,6 +26,18 @@ import type { EventTimestampValidationOptions, NormalizedWebhookEvent } from './
 export type GumroadOptions = {
   publicKey?: string;
   debug?: boolean;
+  /**
+   * When true, `verify()` only passes if an `x-gumroad-signature` header is
+   * present and matches the HMAC of the raw body. When false (the default),
+   * the signature is verified only if a header is provided; payloads without
+   * a header pass verification.
+   *
+   * Real Gumroad resource-subscription deliveries do not include an HMAC
+   * header — the platform secures deliveries via HTTPS and IP allowlisting.
+   * Set this to true only if your integration adds the header upstream
+   * (e.g. a reverse proxy or middleware).
+   */
+  requireSignature?: boolean;
 };
 
 const EVENT_MAP: Record<string, string[]> = {
@@ -104,11 +116,13 @@ function buildEvent(
 export default class Gumroad extends Askrift<'gumroad'> {
   private _req: InternalRequest;
   private _secret: string;
+  private _requireSignature: boolean;
 
   constructor(req: InternalRequest, options: GumroadOptions | boolean = {}) {
     const gumroadOptions = typeof options === 'boolean' ? { debug: options } : options;
     super(gumroadOptions.debug);
     this._secret = process.env.GUMROAD_WEBHOOK_SECRET || '';
+    this._requireSignature = gumroadOptions.requireSignature === true;
     if (!this._secret) throw new Error('GUMROAD_WEBHOOK_SECRET is required');
     this._req = fromRaw(req);
   }
@@ -167,7 +181,9 @@ export default class Gumroad extends Askrift<'gumroad'> {
 
   verify(): boolean {
     const signature = getHeader(this._req.headers, 'x-gumroad-signature') || getHeader(this._req.headers, 'x-signature');
-    if (!signature) return false;
+    if (!signature) {
+      return !this._requireSignature;
+    }
     const expected = hmacSha256Hex(this._secret, getRawBody(this._req));
     return timingSafeEqualString(signature, expected);
   }
