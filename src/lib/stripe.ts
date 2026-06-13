@@ -21,6 +21,12 @@ import type {
 
 export type StripeOptions = {
   publicKey?: string;
+  /**
+   * The webhook signing secret. If omitted, falls back to
+   * `process.env.STRIPE_WEBHOOK_SECRET`. The constructor throws if neither
+   * is set.
+   */
+  webhookSecret?: string;
   debug?: boolean;
 };
 
@@ -46,15 +52,11 @@ function isStripeSupportedEventType(type: string | undefined): type is StripeSup
 
 function timingSafeEqual(expected: string, actual: string): boolean {
   if (expected.length !== actual.length) return false;
-  let expectedBuffer: Buffer;
-  let actualBuffer: Buffer;
-  try {
-    expectedBuffer = Buffer.from(expected, "hex");
-    actualBuffer = Buffer.from(actual, "hex");
-  } catch {
-    return false;
-  }
-  if (expectedBuffer.length !== actualBuffer.length) return false;
+  if (!/^[0-9a-f]+$/i.test(expected) || !/^[0-9a-f]+$/i.test(actual)) return false;
+
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const actualBuffer = Buffer.from(actual, "hex");
+
   return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
@@ -108,10 +110,10 @@ export default class Stripe extends Askrift<"stripe"> {
   private _verified: boolean | null = null;
 
   constructor(req: InternalRequest, options: StripeOptions | boolean = {}) {
-    const stripeOptions = typeof options === "boolean" ? { debug: options } : options;
+    const stripeOptions = typeof options === 'boolean' ? { debug: options } : options;
     super(stripeOptions.debug);
     this._req = fromRaw(req);
-    this._webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+    this._webhookSecret = stripeOptions.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET || "";
     if (!this._webhookSecret) {
       throw new Error("STRIPE_WEBHOOK_SECRET is required");
     }
