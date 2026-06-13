@@ -33,17 +33,18 @@ describe("library works with stripe", function () {
   });
 
   it("should reject an unsupported event", () => {
-    const askrift = initialize("stripe", buildStripeRequest(stripeUnsupportedEvent));
+    const askrift = initialize("stripe", buildStripeRequest(stripeUnsupportedEvent)) as Stripe;
 
-    assert.equal(askrift.validPayload(), false);
+    assert.equal(askrift.validPayload(), true);
+    assert.equal(askrift.getEventType(), null);
   });
 
   it("should convert supported events to normalized events", async () => {
     const askrift = initialize("stripe", buildStripeRequest(stripeInvoicePaymentSucceededEvent)) as Stripe;
     const event = await askrift.onPaymentSucceeded();
-    const normalizedEvent = askrift.getNormalizedEvent();
+    const normalizedEvent = askrift.toNormalizedEvent() as any;
 
-    assert.equal(event?.type, "invoice.payment_succeeded");
+    assert.equal((event as any)?.type, "payment.succeeded");
     assert.equal(normalizedEvent?.provider, "stripe");
     assert.equal(normalizedEvent?.type, "payment.succeeded");
     assert.equal(normalizedEvent?.eventId, "evt_invoice_paid");

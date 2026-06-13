@@ -1,6 +1,6 @@
 import { isObject } from "./utils";
 
-export type WebhookProvider = 'paddle';
+export type WebhookProvider = 'paddle' | 'stripe' | 'gumroad' | 'lemon-squeezy' | 'polar';
 
 export type EventTimestampValidationOptions = {
   /** Maximum accepted event age in milliseconds. */
@@ -25,12 +25,29 @@ export interface NormalizedWebhookEvent {
 type ProviderConfig = {
   idFields: string[];
   timestampFields: string[];
+  parseTimestamp?: (value: unknown) => Date | null;
 };
 
 const PROVIDER_CONFIG: Record<WebhookProvider, ProviderConfig> = {
   paddle: {
     idFields: ['alert_id'],
     timestampFields: ['event_time'],
+  },
+  stripe: {
+    idFields: ['id'],
+    timestampFields: ['created'],
+  },
+  gumroad: {
+    idFields: ['id'],
+    timestampFields: ['created_at'],
+  },
+  'lemon-squeezy': {
+    idFields: ['meta', 'event_id'],
+    timestampFields: ['meta', 'created_at'],
+  },
+  polar: {
+    idFields: ['id'],
+    timestampFields: ['timestamp'],
   },
 };
 
@@ -75,7 +92,13 @@ export function extractEventTimestamp(provider: WebhookProvider, payload: unknow
 
   for (const field of PROVIDER_CONFIG[provider].timestampFields) {
     const value = parsedPayload[field];
-    const timestamp = provider === 'paddle' ? parsePaddleTimestamp(value) : null;
+    let timestamp: Date | null = null;
+    if (provider === 'paddle') {
+      timestamp = parsePaddleTimestamp(value);
+    } else if (typeof value === 'string' || typeof value === 'number') {
+      const date = new Date(value);
+      timestamp = Number.isNaN(date.getTime()) ? null : date;
+    }
     if (timestamp) return timestamp;
   }
 

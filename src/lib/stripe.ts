@@ -1,25 +1,14 @@
 import * as crypto from "crypto";
 import Askrift from "./askrift";
 import { SUBSCRIPTION_EVENT_TYPES } from "../types/events";
-import type { SubscriptionEventType } from "../types/events";
+import type { NormalizedSubscriptionEvent, SubscriptionEventType } from "../types/events";
 import { fromRaw } from "./request";
 import type { InternalRequest } from "./request";
 import { extractStableEventId, isEventFresh } from "./idempotency";
 import type { EventTimestampValidationOptions, NormalizedWebhookEvent } from "./idempotency";
-import type { NormalizedSubscriptionEvent } from "../types/events";
 import type {
   NormalizedStripeEvent,
   StripeCustomerSubscriptionCreatedEvent,
-  StripeCustomerSubscriptionDeletedEvent,
-  StripeCustomerSubscriptionUpdatedEvent,
-  StripeEvent,
-  StripeInvoice,
-  StripeInvoicePaymentFailedEvent,
-  StripeInvoicePaymentSucceededEvent,
-  StripeSubscription,
-  StripeSupportedEvent,
-  StripeSupportedEventType,
-} from "../types/stripe";
   StripeCustomerSubscriptionDeletedEvent,
   StripeCustomerSubscriptionUpdatedEvent,
   StripeEvent,
@@ -129,24 +118,24 @@ export default class Stripe extends Askrift<"stripe"> {
     }
   }
 
-  onSubscriptionCreated(): Promise<(SubscriptionCreated & NormalizedWebhookEvent) | null> {
-    return this.getProviderEventForType("customer.subscription.created");
+  onSubscriptionCreated(): Promise<(NormalizedSubscriptionCreatedEvent & NormalizedWebhookEvent) | null> {
+    return this.getProviderEventForType("customer.subscription.created") as Promise<(NormalizedSubscriptionCreatedEvent & NormalizedWebhookEvent) | null>;
   }
 
-  onSubscriptionCanceled(): Promise<(SubscriptionCancelled & NormalizedWebhookEvent) | null> {
-    return this.getProviderEventForType("customer.subscription.deleted");
+  onSubscriptionCanceled(): Promise<(NormalizedSubscriptionCancelledEvent & NormalizedWebhookEvent) | null> {
+    return this.getProviderEventForType("customer.subscription.deleted") as Promise<(NormalizedSubscriptionCancelledEvent & NormalizedWebhookEvent) | null>;
   }
 
-  onSubscriptionUpdated(): Promise<(SubscriptionUpdated & NormalizedWebhookEvent) | null> {
-    return this.getProviderEventForType("customer.subscription.updated");
+  onSubscriptionUpdated(): Promise<(NormalizedSubscriptionUpdatedEvent & NormalizedWebhookEvent) | null> {
+    return this.getProviderEventForType("customer.subscription.updated") as Promise<(NormalizedSubscriptionUpdatedEvent & NormalizedWebhookEvent) | null>;
   }
 
-  onPaymentSucceeded(): Promise<(PaymentSucceeded & NormalizedWebhookEvent) | null> {
-    return this.getProviderEventForType("invoice.payment_succeeded");
+  onPaymentSucceeded(): Promise<(NormalizedPaymentSucceededEvent & NormalizedWebhookEvent) | null> {
+    return this.getProviderEventForType("invoice.payment_succeeded") as Promise<(NormalizedPaymentSucceededEvent & NormalizedWebhookEvent) | null>;
   }
 
-  onPaymentFailed(): Promise<(PaymentFailed & NormalizedWebhookEvent) | null> {
-    return this.getProviderEventForType("invoice.payment_failed");
+  onPaymentFailed(): Promise<(NormalizedPaymentFailedEvent & NormalizedWebhookEvent) | null> {
+    return this.getProviderEventForType("invoice.payment_failed") as Promise<(NormalizedPaymentFailedEvent & NormalizedWebhookEvent) | null>;
   }
 
   onPaymentRefunded(): Promise<null> {
@@ -166,14 +155,14 @@ export default class Stripe extends Askrift<"stripe"> {
 
   getEventType(): SubscriptionEventType | null {
     if (!this.verify()) return null;
-    const event = this.parseEvent();
+    const event = this.parseStripeEvent();
     if (!isStripeSupportedEventType(event.type)) return null;
     return NORMALIZED_TYPE_MAP[event.type];
   }
 
-  toNormalizedEvent(): NormalizedSubscriptionEvent | null {
+  toNormalizedEvent(): NormalizedSubscriptionEvent<unknown> | null {
     if (!this.verify()) return null;
-    const event = this.parseEvent();
+    const event = this.parseStripeEvent();
     if (!isStripeSupportedEventType(event.type)) return null;
     const supportedEvent = event as StripeSupportedEvent;
     const object = supportedEvent.data.object;
@@ -194,19 +183,19 @@ export default class Stripe extends Askrift<"stripe"> {
 
   getIdempotencyKey(): string | null {
     if (!this.verify()) return null;
-    const event = this.parseEvent();
+    const event = this.parseStripeEvent();
     return extractStableEventId("stripe", event);
   }
 
   getEventTimestamp(): Date | null {
     if (!this.verify()) return null;
-    const event = this.parseEvent();
+    const event = this.parseStripeEvent();
     return new Date(event.created * 1000);
   }
 
   isFresh(options: EventTimestampValidationOptions): boolean | null {
     if (!this.verify()) return null;
-    const event = this.parseEvent();
+    const event = this.parseStripeEvent();
     return isEventFresh("stripe", event, options);
   }
 
@@ -252,7 +241,7 @@ export default class Stripe extends Askrift<"stripe"> {
     return signatures.some((signature) => timingSafeEqual(expectedSignature, signature));
   }
 
-  private parseEvent(): StripeEvent {
+  private parseStripeEvent(): StripeEvent {
     if (this._parsedEvent) return this._parsedEvent;
     if (!this.verifySignature()) throw new Error("Invalid Stripe signature");
 
@@ -268,14 +257,11 @@ export default class Stripe extends Askrift<"stripe"> {
     return parsed;
   }
 
-  private async getProviderEventForType<T extends StripeSupportedEvent>(type: StripeSupportedEventType): Promise<(T & NormalizedSubscriptionEvent & NormalizedWebhookEvent) | null> {
+  private async getProviderEventForType<T extends NormalizedSubscriptionEvent<unknown> = NormalizedSubscriptionEvent<unknown>>(type: StripeSupportedEventType): Promise<(T & NormalizedWebhookEvent) | null> {
     try {
-      const event = this.parseEvent();
-      if (event.type !== type) return null;
-      const eventWithType = event as T;
       const baseEvent = this.toNormalizedEvent();
-      if (!baseEvent) return null;
-      return { ...eventWithType, ...baseEvent } as unknown as T & NormalizedSubscriptionEvent & NormalizedWebhookEvent;
+      if (!baseEvent || baseEvent.type !== NORMALIZED_TYPE_MAP[type]) return null;
+      return baseEvent as unknown as (T & NormalizedWebhookEvent);
     } catch (error) {
       this.debug(error);
       return null;
@@ -283,9 +269,8 @@ export default class Stripe extends Askrift<"stripe"> {
   }
 }
 
-type SubscriptionCreated = StripeCustomerSubscriptionCreatedEvent;
-type SubscriptionUpdated = StripeCustomerSubscriptionUpdatedEvent;
-type SubscriptionCancelled = StripeCustomerSubscriptionDeletedEvent;
-type PaymentSucceeded = StripeInvoicePaymentSucceededEvent;
-type PaymentFailed = StripeInvoicePaymentFailedEvent;
-type NormalizedSubscriptionEvent = NormalizedStripeEvent;
+type NormalizedSubscriptionCreatedEvent = StripeCustomerSubscriptionCreatedEvent;
+type NormalizedSubscriptionUpdatedEvent = StripeCustomerSubscriptionUpdatedEvent;
+type NormalizedSubscriptionCancelledEvent = StripeCustomerSubscriptionDeletedEvent;
+type NormalizedPaymentSucceededEvent = StripeInvoicePaymentSucceededEvent;
+type NormalizedPaymentFailedEvent = StripeInvoicePaymentFailedEvent;
