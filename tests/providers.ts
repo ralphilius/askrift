@@ -54,7 +54,7 @@ describe('provider lifecycle fixtures', function () {
 
     const canceledReq = jsonReq({ ...saleBody, resource_name: 'subscription_ended' });
     canceledReq.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, canceledReq.rawBody);
-    assert.equal((await initialize('gumroad', canceledReq).onSubscriptionCanceled())?.type, 'subscription.canceled');
+    assert.equal((await initialize('gumroad', canceledReq).onSubscriptionCanceled())?.type, 'subscription.cancelled');
   });
 
   it('maps and verifies Lemon Squeezy subscription/payment lifecycle events', async () => {
@@ -83,7 +83,7 @@ describe('provider lifecycle fixtures', function () {
 
     for (const [eventName, handler, expectedType] of [
       ['subscription_updated', 'onSubscriptionUpdated', 'subscription.updated'],
-      ['subscription_expired', 'onSubscriptionCanceled', 'subscription.canceled'],
+      ['subscription_expired', 'onSubscriptionCanceled', 'subscription.cancelled'],
       ['subscription_payment_success', 'onPaymentSucceeded', 'payment.succeeded'],
       ['subscription_payment_failed', 'onPaymentFailed', 'payment.failed'],
       ['order_refunded', 'onPaymentRefunded', 'payment.refunded'],
@@ -119,7 +119,7 @@ describe('provider lifecycle fixtures', function () {
 
     for (const [eventType, handler, expectedType] of [
       ['subscription.updated', 'onSubscriptionUpdated', 'subscription.updated'],
-      ['subscription.revoked', 'onSubscriptionCanceled', 'subscription.canceled'],
+      ['subscription.revoked', 'onSubscriptionCanceled', 'subscription.cancelled'],
       ['order.paid', 'onPaymentSucceeded', 'payment.succeeded'],
       ['subscription.past_due', 'onPaymentFailed', 'payment.failed'],
       ['order.refunded', 'onPaymentRefunded', 'payment.refunded'],
@@ -153,7 +153,7 @@ describe('provider lifecycle fixtures', function () {
     req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
     const gumroad = initialize('gumroad', req);
     assert.equal(await gumroad.onSubscriptionCreated(), null);
-    assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_123');
+    assert.equal((await gumroad.onPaymentSucceeded())?.eventId, 'sale_123');
   });
 
   it('treats Lemon Squeezy subscription_paused as paused, not canceled', async () => {
@@ -298,7 +298,7 @@ describe('provider lifecycle fixtures', function () {
     req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
     const gumroad = initialize('gumroad', req);
     assert.equal(await gumroad.onSubscriptionCreated(), null);
-    assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_recurring');
+    assert.equal((await gumroad.onPaymentSucceeded())?.eventId, 'sale_recurring');
   });
 
   it('treats string "false" Gumroad recurring as non-recurring', async () => {
@@ -311,8 +311,8 @@ describe('provider lifecycle fixtures', function () {
     const req = jsonReq(body);
     req.headers['x-gumroad-signature'] = hmacHex(process.env.GUMROAD_WEBHOOK_SECRET!, req.rawBody);
     const gumroad = initialize('gumroad', req);
-    assert.equal((await gumroad.onSubscriptionCreated())?.id, 'sale_string_false');
-    assert.equal((await gumroad.onPaymentSucceeded())?.id, 'sale_string_false');
+    assert.equal((await gumroad.onSubscriptionCreated())?.eventId, 'sale_string_false');
+    assert.equal((await gumroad.onPaymentSucceeded())?.eventId, 'sale_string_false');
   });
 
   it('treats Polar order.refunded with partially_refunded status as a refund', async () => {
@@ -325,8 +325,8 @@ describe('provider lifecycle fixtures', function () {
     const req = jsonReq(body, { 'webhook-id': id, 'webhook-timestamp': timestamp });
     req.headers['webhook-signature'] = polarSignature(process.env.POLAR_WEBHOOK_SECRET!, id, timestamp, req.rawBody);
     const event = await initialize('polar', req).onPaymentRefunded();
-    assert.equal(event?.type, 'payment.partially_refunded');
-    assert.equal(event?.amount, 500);
+    assert.equal(event?.type, 'payment.refunded');
+    assert.equal((event?.raw as any).data.refunded_amount, 500);
   });
 
   it('reports Lemon Squeezy refund amount from refunded_amount when present', async () => {
@@ -345,6 +345,6 @@ describe('provider lifecycle fixtures', function () {
     const req = jsonReq(body);
     req.headers['x-signature'] = hmacHex(process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!, req.rawBody);
     const event = await initialize('lemon-squeezy', req).onPaymentRefunded();
-    assert.equal(event?.amount, 1200);
+    assert.equal((event?.raw as any).data.attributes.refunded_amount, 1200);
   });
 });

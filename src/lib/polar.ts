@@ -133,12 +133,8 @@ export default class Polar extends Askrift<'polar'> {
     const type = getEventTypeForPayload(payload);
     if (!type) return null;
     const data = payload.data || {};
-    const status = (data as any)?.status;
-    const resolvedType = typeof status === 'string' && status.toLowerCase() === 'partially_refunded'
-      ? 'payment.partially_refunded' as SubscriptionEventType
-      : type;
     return {
-      type: resolvedType,
+      type,
       provider: 'polar',
       eventId: data.id,
       subscriptionId: data.subscription_id || (payload.type?.startsWith('subscription.') ? data.id : null) || null,

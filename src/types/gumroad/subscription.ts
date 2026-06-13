@@ -1,4 +1,4 @@
-import { NormalizedEvent } from '../common';
+import { NormalizedEventByType, SubscriptionEventType } from '../events';
 
 export type GumroadResourceName =
   | 'sale'
@@ -34,10 +34,13 @@ export interface GumroadWebhookPayload {
   [key: string]: unknown;
 }
 
-export type GumroadSubscriptionCreated = NormalizedEvent<GumroadWebhookPayload>;
-export type GumroadSubscriptionUpdated = NormalizedEvent<GumroadWebhookPayload>;
-export type GumroadSubscriptionCancelled = NormalizedEvent<GumroadWebhookPayload>;
-export type GumroadSubscriptionPaused = NormalizedEvent<GumroadWebhookPayload>;
-export type GumroadPaymentSucceeded = NormalizedEvent<GumroadWebhookPayload>;
-export type GumroadPaymentFailed = NormalizedEvent<GumroadWebhookPayload>;
-export type GumroadPaymentRefunded = NormalizedEvent<GumroadWebhookPayload>;
+export type GumroadEvent<TType extends SubscriptionEventType = SubscriptionEventType> =
+  NormalizedEventByType<TType, GumroadWebhookPayload>;
+
+export type GumroadSubscriptionCreated = NormalizedEventByType<'subscription.created', GumroadWebhookPayload>;
+export type GumroadSubscriptionUpdated = NormalizedEventByType<'subscription.updated', GumroadWebhookPayload>;
+export type GumroadSubscriptionCancelled = NormalizedEventByType<'subscription.cancelled', GumroadWebhookPayload>;
+export type GumroadSubscriptionPaused = NormalizedEventByType<'subscription.paused', GumroadWebhookPayload>;
+export type GumroadPaymentSucceeded = NormalizedEventByType<'payment.succeeded', GumroadWebhookPayload>;
+export type GumroadPaymentFailed = NormalizedEventByType<'payment.failed', GumroadWebhookPayload>;
+export type GumroadPaymentRefunded = NormalizedEventByType<'payment.refunded', GumroadWebhookPayload>;

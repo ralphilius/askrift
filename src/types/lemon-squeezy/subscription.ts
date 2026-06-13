@@ -1,4 +1,4 @@
-import { NormalizedEvent } from '../common';
+import { NormalizedEventByType } from '../events';
 
 export interface LemonSqueezyWebhookPayload {
   meta?: {
@@ -29,10 +29,10 @@ export interface LemonSqueezyWebhookPayload {
   [key: string]: unknown;
 }
 
-export type LemonSqueezySubscriptionCreated = NormalizedEvent<LemonSqueezyWebhookPayload>;
-export type LemonSqueezySubscriptionUpdated = NormalizedEvent<LemonSqueezyWebhookPayload>;
-export type LemonSqueezySubscriptionCancelled = NormalizedEvent<LemonSqueezyWebhookPayload>;
-export type LemonSqueezySubscriptionPaused = NormalizedEvent<LemonSqueezyWebhookPayload>;
-export type LemonSqueezyPaymentSucceeded = NormalizedEvent<LemonSqueezyWebhookPayload>;
-export type LemonSqueezyPaymentFailed = NormalizedEvent<LemonSqueezyWebhookPayload>;
-export type LemonSqueezyPaymentRefunded = NormalizedEvent<LemonSqueezyWebhookPayload>;
+export type LemonSqueezySubscriptionCreated = NormalizedEventByType<'subscription.created', LemonSqueezyWebhookPayload>;
+export type LemonSqueezySubscriptionUpdated = NormalizedEventByType<'subscription.updated', LemonSqueezyWebhookPayload>;
+export type LemonSqueezySubscriptionCancelled = NormalizedEventByType<'subscription.cancelled', LemonSqueezyWebhookPayload>;
+export type LemonSqueezySubscriptionPaused = NormalizedEventByType<'subscription.paused', LemonSqueezyWebhookPayload>;
+export type LemonSqueezyPaymentSucceeded = NormalizedEventByType<'payment.succeeded', LemonSqueezyWebhookPayload>;
+export type LemonSqueezyPaymentFailed = NormalizedEventByType<'payment.failed', LemonSqueezyWebhookPayload>;
+export type LemonSqueezyPaymentRefunded = NormalizedEventByType<'payment.refunded', LemonSqueezyWebhookPayload>;

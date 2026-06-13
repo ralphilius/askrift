@@ -1,4 +1,4 @@
-import { NormalizedEvent } from '../common';
+import { NormalizedEventByType } from '../events';
 
 export interface PolarWebhookPayload {
   type?: string;
@@ -22,10 +22,10 @@ export interface PolarWebhookPayload {
   [key: string]: unknown;
 }
 
-export type PolarSubscriptionCreated = NormalizedEvent<PolarWebhookPayload>;
-export type PolarSubscriptionUpdated = NormalizedEvent<PolarWebhookPayload>;
-export type PolarSubscriptionCancelled = NormalizedEvent<PolarWebhookPayload>;
-export type PolarSubscriptionPaused = NormalizedEvent<PolarWebhookPayload>;
-export type PolarPaymentSucceeded = NormalizedEvent<PolarWebhookPayload>;
-export type PolarPaymentFailed = NormalizedEvent<PolarWebhookPayload>;
-export type PolarPaymentRefunded = NormalizedEvent<PolarWebhookPayload>;
+export type PolarSubscriptionCreated = NormalizedEventByType<'subscription.created', PolarWebhookPayload>;
+export type PolarSubscriptionUpdated = NormalizedEventByType<'subscription.updated', PolarWebhookPayload>;
+export type PolarSubscriptionCancelled = NormalizedEventByType<'subscription.cancelled', PolarWebhookPayload>;
+export type PolarSubscriptionPaused = NormalizedEventByType<'subscription.paused', PolarWebhookPayload>;
+export type PolarPaymentSucceeded = NormalizedEventByType<'payment.succeeded', PolarWebhookPayload>;
+export type PolarPaymentFailed = NormalizedEventByType<'payment.failed', PolarWebhookPayload>;
+export type PolarPaymentRefunded = NormalizedEventByType<'payment.refunded', PolarWebhookPayload>;

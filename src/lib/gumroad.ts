@@ -61,7 +61,14 @@ function getEventTypeForPayload(payload: GumroadWebhookPayload): SubscriptionEve
     if (names.includes(resource)) return type as SubscriptionEventType;
   }
   return null;
-}function matchesEvent(payload: GumroadWebhookPayload, type: SubscriptionEventType, requireSubscription = false, requireNonRecurring = false): boolean {
+}
+
+function matchesEvent(
+  payload: GumroadWebhookPayload,
+  type: SubscriptionEventType,
+  requireSubscription = false,
+  requireNonRecurring = false
+): boolean {
   const resource: string | undefined = payload.resource_name;
   if (!resource) return false;
   const names = (EVENT_MAP as Record<string, string[]>)[type];
@@ -75,40 +82,83 @@ function getBody(req: InternalRequest): GumroadWebhookPayload | null {
   return parseBody<GumroadWebhookPayload>(req);
 }
 
+function buildEvent(
+  payload: GumroadWebhookPayload,
+  type: SubscriptionEventType
+): NormalizedSubscriptionEvent<unknown> {
+  return {
+    type,
+    provider: 'gumroad',
+    eventId: payload.sale_id ?? null,
+    subscriptionId: payload.subscription_id ?? null,
+    customerId: payload.purchaser_id ?? null,
+    customerEmail: payload.email ?? null,
+    productId: payload.product_id ?? null,
+    amount: payload.price == null ? null : Number(payload.price),
+    currency: payload.currency ?? null,
+    occurredAt: payload.sale_timestamp ?? null,
+    raw: payload,
+  } as unknown as NormalizedSubscriptionEvent<unknown>;
+}
+
 export default class Gumroad extends Askrift<'gumroad'> {
   private _req: InternalRequest;
   private _secret: string;
 
   constructor(req: InternalRequest, options: GumroadOptions | boolean = {}) {
-    const gumroadOptions = typeof options === "boolean" ? { debug: options } : options;
+    const gumroadOptions = typeof options === 'boolean' ? { debug: options } : options;
     super(gumroadOptions.debug);
-    this._secret = process.env.GUMROAD_WEBHOOK_SECRET || "";
+    this._secret = process.env.GUMROAD_WEBHOOK_SECRET || '';
     if (!this._secret) throw new Error('GUMROAD_WEBHOOK_SECRET is required');
     this._req = fromRaw(req);
   }
 
   onSubscriptionCreated(): Promise<(GumroadSubscriptionCreated & NormalizedWebhookEvent) | null> {
-    return this.getEventForType(SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated, true, true) as unknown as Promise<(GumroadSubscriptionCreated & NormalizedWebhookEvent) | null>;
+    return this.getEventForType(
+      SUBSCRIPTION_EVENT_TYPES.SubscriptionCreated,
+      true,
+      true
+    ) as unknown as Promise<(GumroadSubscriptionCreated & NormalizedWebhookEvent) | null>;
   }
 
   onSubscriptionCanceled(): Promise<(GumroadSubscriptionCancelled & NormalizedWebhookEvent) | null> {
-    return this.getEventForType(SUBSCRIPTION_EVENT_TYPES.SubscriptionCancelled, true, false) as unknown as Promise<(GumroadSubscriptionCancelled & NormalizedWebhookEvent) | null>;
+    return this.getEventForType(
+      SUBSCRIPTION_EVENT_TYPES.SubscriptionCancelled,
+      true,
+      false
+    ) as unknown as Promise<(GumroadSubscriptionCancelled & NormalizedWebhookEvent) | null>;
   }
 
   onSubscriptionUpdated(): Promise<(GumroadSubscriptionUpdated & NormalizedWebhookEvent) | null> {
-    return this.getEventForType(SUBSCRIPTION_EVENT_TYPES.SubscriptionUpdated, true, false) as unknown as Promise<(GumroadSubscriptionUpdated & NormalizedWebhookEvent) | null>;
+    return this.getEventForType(
+      SUBSCRIPTION_EVENT_TYPES.SubscriptionUpdated,
+      true,
+      false
+    ) as unknown as Promise<(GumroadSubscriptionUpdated & NormalizedWebhookEvent) | null>;
   }
 
   onPaymentSucceeded(): Promise<(GumroadPaymentSucceeded & NormalizedWebhookEvent) | null> {
-    return this.getEventForType(SUBSCRIPTION_EVENT_TYPES.PaymentSucceeded, false, true) as unknown as Promise<(GumroadPaymentSucceeded & NormalizedWebhookEvent) | null>;
+    return this.getEventForType(
+      SUBSCRIPTION_EVENT_TYPES.PaymentSucceeded,
+      false,
+      false
+    ) as unknown as Promise<(GumroadPaymentSucceeded & NormalizedWebhookEvent) | null>;
   }
 
   onPaymentFailed(): Promise<(GumroadPaymentFailed & NormalizedWebhookEvent) | null> {
-    return this.getEventForType(SUBSCRIPTION_EVENT_TYPES.PaymentFailed, false, false) as unknown as Promise<(GumroadPaymentFailed & NormalizedWebhookEvent) | null>;
+    return this.getEventForType(
+      SUBSCRIPTION_EVENT_TYPES.PaymentFailed,
+      false,
+      false
+    ) as unknown as Promise<(GumroadPaymentFailed & NormalizedWebhookEvent) | null>;
   }
 
   onPaymentRefunded(): Promise<(GumroadPaymentRefunded & NormalizedWebhookEvent) | null> {
-    return this.getEventForType(SUBSCRIPTION_EVENT_TYPES.PaymentRefunded, false, false) as unknown as Promise<(GumroadPaymentRefunded & NormalizedWebhookEvent) | null>;
+    return this.getEventForType(
+      SUBSCRIPTION_EVENT_TYPES.PaymentRefunded,
+      false,
+      false
+    ) as unknown as Promise<(GumroadPaymentRefunded & NormalizedWebhookEvent) | null>;
   }
 
   validRequest(): boolean {
@@ -135,20 +185,7 @@ export default class Gumroad extends Askrift<'gumroad'> {
     if (!payload) return null;
     const type = getEventTypeForPayload(payload);
     if (!type) return null;
-    const isRefund = type === SUBSCRIPTION_EVENT_TYPES.PaymentRefunded;
-    return {
-      type,
-      provider: 'gumroad',
-      eventId: payload.sale_id,
-      subscriptionId: payload.subscription_id || null,
-      customerId: payload.purchaser_id || null,
-      customerEmail: payload.email || null,
-      productId: payload.product_id || null,
-      amount: payload.price == null ? null : Number(payload.price),
-      currency: payload.currency || null,
-      occurredAt: payload.sale_timestamp || null,
-      raw: payload,
-    } as unknown as NormalizedSubscriptionEvent<unknown>;
+    return buildEvent(payload, type);
   }
 
   getIdempotencyKey(): string | null {
@@ -178,12 +215,16 @@ export default class Gumroad extends Askrift<'gumroad'> {
     return (SUBSCRIPTION_EVENTS as string[]).includes(type);
   }
 
-  private async getEventForType(type: SubscriptionEventType, requireSubscription = false, requireNonRecurring = false): Promise<(NormalizedSubscriptionEvent<unknown> & NormalizedWebhookEvent) | null> {
+  private async getEventForType(
+    type: SubscriptionEventType,
+    requireSubscription = false,
+    requireNonRecurring = false
+  ): Promise<(NormalizedSubscriptionEvent<unknown> & NormalizedWebhookEvent) | null> {
     try {
       if (!this.verify()) return null;
       const payload = getBody(this._req);
-      if (!payload || !matchesEvent(payload, type as any, requireSubscription, requireNonRecurring)) return null;
-      const event = this.toNormalizedEvent();
+      if (!payload || !matchesEvent(payload, type, requireSubscription, requireNonRecurring)) return null;
+      const event = buildEvent(payload, type);
       if (!event || event.type !== type) return null;
       return event as unknown as (NormalizedSubscriptionEvent<unknown> & NormalizedWebhookEvent);
     } catch (error) {
