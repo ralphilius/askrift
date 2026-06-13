@@ -1,6 +1,6 @@
 import { isObject } from "./utils";
 
-export type WebhookProvider = 'paddle';
+export type WebhookProvider = 'paddle' | 'gumroad' | 'lemon-squeezy' | 'polar' | 'stripe';
 
 export type EventTimestampValidationOptions = {
   /** Maximum accepted event age in milliseconds. */
@@ -31,6 +31,22 @@ const PROVIDER_CONFIG: Record<WebhookProvider, ProviderConfig> = {
   paddle: {
     idFields: ['alert_id'],
     timestampFields: ['event_time'],
+  },
+  stripe: {
+    idFields: ['id'],
+    timestampFields: ['created'],
+  },
+  gumroad: {
+    idFields: ['sale_id'],
+    timestampFields: ['sale_timestamp'],
+  },
+  'lemon-squeezy': {
+    idFields: ['meta', 'event_id'],
+    timestampFields: ['meta', 'created_at'],
+  },
+  polar: {
+    idFields: ['data', 'id'],
+    timestampFields: ['data', 'modified_at'],
   },
 };
 
