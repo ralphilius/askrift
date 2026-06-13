@@ -51,6 +51,22 @@ const PROVIDER_CONFIG: Record<WebhookProvider, ProviderConfig> = {
     idFields: ['id'],
     timestampFields: ['timestamp'],
   },
+  stripe: {
+    idFields: ['id'],
+    timestampFields: ['created'],
+  },
+  gumroad: {
+    idFields: ['sale_id'],
+    timestampFields: ['sale_timestamp'],
+  },
+  'lemon-squeezy': {
+    idFields: ['meta', 'event_id'],
+    timestampFields: ['meta', 'created_at'],
+  },
+  polar: {
+    idFields: ['data', 'id'],
+    timestampFields: ['data', 'modified_at'],
+  },
 };
 
 function asPayload(payload: unknown): Record<string, any> | null {

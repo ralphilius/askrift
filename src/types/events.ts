@@ -4,6 +4,7 @@ export const SUBSCRIPTION_EVENT_TYPES = {
   SubscriptionCreated: "subscription.created",
   SubscriptionUpdated: "subscription.updated",
   SubscriptionCancelled: "subscription.cancelled",
+  SubscriptionPaused: "subscription.paused",
   PaymentSucceeded: "payment.succeeded",
   PaymentFailed: "payment.failed",
   PaymentRefunded: "payment.refunded",
