@@ -49,6 +49,8 @@ const ALL_EVENTS = [
   SUBSCRIPTION_EVENT_TYPES.PaymentRefunded,
 ];
 
+const ALL_PROVIDER_EVENTS = Array.from(new Set(Object.values(EVENT_MAP).flat()));
+
 function getEventTypeForPayload(payload: LemonSqueezyWebhookPayload): SubscriptionEventType | null {
   const eventName = payload.meta?.event_name;
   if (!eventName) return null;
@@ -154,7 +156,8 @@ export default class LemonSqueezy extends Askrift<'lemon-squeezy'> {
     if (!this.verify()) return null;
     const payload = getBody(this._req);
     if (!payload) return null;
-    return extractStableEventId('lemon-squeezy', payload);
+    const eventId = extractStableEventId('lemon-squeezy', payload);
+    return eventId ? `lemon-squeezy:${eventId}` : null;
   }
 
   getEventTimestamp(): Date | null {
@@ -176,7 +179,22 @@ export default class LemonSqueezy extends Askrift<'lemon-squeezy'> {
   }
 
   isSupportedEventType(type: string): boolean {
-    return ALL_EVENTS.includes(type as SubscriptionEventType);
+    return ALL_PROVIDER_EVENTS.includes(type);
+  }
+
+  protected parseProviderEvent(): import("../lib/askrift").AskriftParsedEvent | null {
+    if (!this.verify()) return null;
+    const payload = getBody(this._req);
+    if (!payload) return null;
+    const type = getEventTypeForPayload(payload);
+    if (!type) return null;
+    return {
+      eventType: type,
+      payload: payload as unknown as import("../lib/askrift").AskriftParsedEvent["payload"],
+      provider: "lemon-squeezy",
+      providerEventType: payload.meta?.event_name,
+      aliases: payload.meta?.event_name ? [payload.meta.event_name] : [],
+    };
   }
 
   private async getEventForType(type: SubscriptionEventType): Promise<(NormalizedSubscriptionEvent<unknown> & NormalizedWebhookEvent) | null> {

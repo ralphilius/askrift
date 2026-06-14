@@ -46,6 +46,11 @@ export interface NormalizedSubscriptionCancelledEvent<TRaw = unknown>
   cancellationEffectiveDate?: Date | string;
 }
 
+export interface NormalizedSubscriptionPausedEvent<TRaw = unknown>
+  extends NormalizedEventBase<typeof SUBSCRIPTION_EVENT_TYPES.SubscriptionPaused, TRaw> {
+  resumesAt?: Date | string;
+}
+
 export interface NormalizedPaymentSucceededEvent<TRaw = unknown>
   extends NormalizedEventBase<typeof SUBSCRIPTION_EVENT_TYPES.PaymentSucceeded, TRaw> {
   paymentId?: string;
@@ -77,6 +82,7 @@ export type NormalizedSubscriptionEvent<TRaw = unknown> =
   | NormalizedSubscriptionCreatedEvent<TRaw>
   | NormalizedSubscriptionUpdatedEvent<TRaw>
   | NormalizedSubscriptionCancelledEvent<TRaw>
+  | NormalizedSubscriptionPausedEvent<TRaw>
   | NormalizedPaymentSucceededEvent<TRaw>
   | NormalizedPaymentFailedEvent<TRaw>
   | NormalizedPaymentRefundedEvent<TRaw>;

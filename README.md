@@ -36,6 +36,6 @@ module.exports = (req, res) => {
 | --- | --- | --- | --- |
 | Paddle | ![stable](https://img.shields.io/badge/status-stable-brightgreen) | RSA/SHA1 payload signatures | subscriptions and subscription payments |
 | Stripe | ![stable](https://img.shields.io/badge/status-stable-brightgreen) | HMAC-SHA256 with timestamp tolerance using `STRIPE_WEBHOOK_SECRET` and `stripe-signature` | `customer.subscription.*` and `invoice.payment_*` events normalized to the framework's subscription/payment lifecycle |
-| Gumroad | ![beta](https://img.shields.io/badge/status-beta-yellow) | Optional HMAC-SHA256 using `GUMROAD_WEBHOOK_SECRET` and `x-gumroad-signature`/`x-signature` (set `requireSignature: true` to enforce) | sales, refunds, disputes, and subscription updates/cancellations |
+| Gumroad | ![beta](https://img.shields.io/badge/status-beta-yellow) | Optional HMAC-SHA256 using `GUMROAD_WEBHOOK_SECRET` and `x-gumroad-signature`/`x-signature` (set `requireSignature: true` to enforce) | sales, refunds, and subscription updates/cancellations |
 | Lemon Squeezy | ![beta](https://img.shields.io/badge/status-beta-yellow) | HMAC-SHA256 using `LEMON_SQUEEZY_WEBHOOK_SECRET` and `x-signature` | subscription, order, payment, and refund events |
-| Polar | ![beta](https://img.shields.io/badge/status-beta-yellow) | Standard Webhooks HMAC-SHA256 using `POLAR_WEBHOOK_SECRET` (`whsec_*` secrets supported) | subscription, order, payment, and refund events |
+| Polar | ![beta](https://img.shields.io/badge/status-beta-yellow) | Standard Webhooks HMAC-SHA256 using `POLAR_WEBHOOK_SECRET` and `webhook-id`/`webhook-timestamp`/`webhook-signature` headers (`whsec_*` secrets supported) | subscription, order, payment, and refund events |

@@ -55,6 +55,8 @@ const SUBSCRIPTION_EVENTS = [
   SUBSCRIPTION_EVENT_TYPES.SubscriptionCancelled,
 ];
 
+const ALL_PROVIDER_EVENTS = Array.from(new Set(Object.values(EVENT_MAP).flat()));
+
 function isTruthyRecurring(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
@@ -221,7 +223,8 @@ export default class Gumroad extends Askrift<'gumroad'> {
     if (!this.verify()) return null;
     const payload = getBody(this._req);
     if (!payload) return null;
-    return extractStableEventId('gumroad', payload);
+    const eventId = extractStableEventId('gumroad', payload);
+    return eventId ? `gumroad:${eventId}` : null;
   }
 
   getEventTimestamp(): Date | null {
@@ -241,7 +244,22 @@ export default class Gumroad extends Askrift<'gumroad'> {
   }
 
   isSupportedEventType(type: string): boolean {
-    return (SUBSCRIPTION_EVENTS as string[]).includes(type);
+    return (ALL_PROVIDER_EVENTS as string[]).includes(type);
+  }
+
+  protected parseProviderEvent(): import("../lib/askrift").AskriftParsedEvent | null {
+    if (!this.verify()) return null;
+    const payload = getBody(this._req);
+    if (!payload) return null;
+    const type = getEventTypeForPayload(payload);
+    if (!type) return null;
+    return {
+      eventType: type,
+      payload: payload as unknown as import("../lib/askrift").AskriftParsedEvent["payload"],
+      provider: "gumroad",
+      providerEventType: payload.resource_name,
+      aliases: payload.resource_name ? [payload.resource_name] : [],
+    };
   }
 
   private async getEventForType(

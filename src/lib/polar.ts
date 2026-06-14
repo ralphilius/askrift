@@ -41,6 +41,7 @@ const EVENT_MAP: Record<string, string[]> = {
 
 const REFUND_COMPLETED_STATUSES = new Set(['succeeded', 'refunded', 'paid', 'partially_refunded']);
 const ALL_EVENTS = Object.keys(EVENT_MAP);
+const ALL_PROVIDER_EVENTS = Array.from(new Set(Object.values(EVENT_MAP).flat()));
 const REFUND_EVENTS = EVENT_MAP[SUBSCRIPTION_EVENT_TYPES.PaymentRefunded];
 
 function isRefundCompleted(payload: PolarWebhookPayload): boolean {
@@ -159,7 +160,8 @@ export default class Polar extends Askrift<'polar'> {
     if (!this.verify()) return null;
     const payload = getBody(this._req);
     if (!payload) return null;
-    return extractStableEventId('polar', payload);
+    const eventId = extractStableEventId('polar', payload);
+    return eventId ? `polar:${eventId}` : null;
   }
 
   getEventTimestamp(): Date | null {
@@ -181,7 +183,22 @@ export default class Polar extends Askrift<'polar'> {
   }
 
   isSupportedEventType(type: string): boolean {
-    return ALL_EVENTS.includes(type);
+    return ALL_PROVIDER_EVENTS.includes(type);
+  }
+
+  protected parseProviderEvent(): import("../lib/askrift").AskriftParsedEvent | null {
+    if (!this.verify()) return null;
+    const payload = getBody(this._req);
+    if (!payload) return null;
+    const type = getEventTypeForPayload(payload);
+    if (!type) return null;
+    return {
+      eventType: type,
+      payload: payload as unknown as import("../lib/askrift").AskriftParsedEvent["payload"],
+      provider: "polar",
+      providerEventType: payload.type,
+      aliases: payload.type ? [payload.type] : [],
+    };
   }
 
   private async getEventForType(type: SubscriptionEventType): Promise<(NormalizedSubscriptionEvent<unknown> & NormalizedWebhookEvent) | null> {
