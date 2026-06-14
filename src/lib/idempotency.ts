@@ -40,22 +40,6 @@ const PROVIDER_CONFIG: Record<WebhookProvider, ProviderConfig> = {
     parseTimestamp: parseUnixSecondsTimestamp,
   },
   gumroad: {
-    idFields: ['id'],
-    timestampFields: ['created_at'],
-  },
-  'lemon-squeezy': {
-    idFields: ['meta', 'event_id'],
-    timestampFields: ['meta', 'created_at'],
-  },
-  polar: {
-    idFields: ['id'],
-    timestampFields: ['timestamp'],
-  },
-  stripe: {
-    idFields: ['id'],
-    timestampFields: ['created'],
-  },
-  gumroad: {
     idFields: ['sale_id'],
     timestampFields: ['sale_timestamp'],
   },
