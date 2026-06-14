@@ -190,7 +190,7 @@ describe('library works with paddle', function () {
   it('should keep payloads reusable after validation', async () => {
     assert.equal(askriftPd.validPayload(), true);
     const event = await askriftPd.onPaymentSucceeded();
-    assert.equal(event?.p_signature, validPayload.p_signature);
+    assert.equal((event as any)?.p_signature, validPayload.p_signature);
   });
 
   it('should extract duplicate event IDs into the same provider-neutral idempotency key', async () => {
@@ -358,8 +358,8 @@ describe('library works with paddle', function () {
     assert.equal(paddle.validPayload(), true);
     const event = await paddle.onSubscriptionCreated();
     assert.isNotNull(event);
-    assert.equal(event?.alert_name, 'subscription_created');
-    assert.equal(event?.p_signature, signedCreated);
+    assert.equal((event as any)?.alert_name, 'subscription_created');
+    assert.equal((event as any)?.p_signature, signedCreated);
   });
 
   it('should accept requests whose content-type includes a charset parameter', () => {
@@ -415,8 +415,8 @@ describe('library works with paddle', function () {
     assert.equal(paddle.validRequest(), true);
     const event = await paddle.onPaymentSucceeded();
     assert.isNotNull(event);
-    assert.equal(event?.alert_name, 'subscription_payment_succeeded');
-    assert.equal(event?.subscription_id, '8');
+    assert.equal((event as any)?.alert_name, 'subscription_payment_succeeded');
+    assert.equal((event as any)?.subscription_id, '8');
   });
 });
 
@@ -426,7 +426,7 @@ describe('provider registry initialization', function () {
 
     assert.equal(askriftPd.validRequest(), true);
     assert.equal(askriftPd.validPayload(), true);
-    assert.deepInclude(await askriftPd.onPaymentSucceeded(), {
+    assert.deepInclude((await askriftPd.onPaymentSucceeded()) as any, {
       alert_name: 'subscription_payment_succeeded',
       subscription_id: '8',
     });
