@@ -1,6 +1,6 @@
 import { isObject } from "./utils";
 
-export type WebhookProvider = 'paddle';
+export type WebhookProvider = 'paddle' | 'stripe' | 'gumroad' | 'lemon-squeezy' | 'polar';
 
 export type EventTimestampValidationOptions = {
   /** Maximum accepted event age in milliseconds. */
@@ -25,17 +25,47 @@ export interface NormalizedWebhookEvent {
 type ProviderConfig = {
   idFields: string[];
   timestampFields: string[];
+  parseTimestamp?: (value: unknown) => Date | null;
 };
 
 const PROVIDER_CONFIG: Record<WebhookProvider, ProviderConfig> = {
   paddle: {
     idFields: ['alert_id'],
     timestampFields: ['event_time'],
+    parseTimestamp: parsePaddleTimestamp,
+  },
+  stripe: {
+    idFields: ['id'],
+    timestampFields: ['created'],
+    parseTimestamp: parseUnixSecondsTimestamp,
+  },
+  gumroad: {
+    idFields: ['id'],
+    timestampFields: ['created_at'],
+  },
+  'lemon-squeezy': {
+    idFields: ['meta', 'event_id'],
+    timestampFields: ['meta', 'created_at'],
+  },
+  polar: {
+    idFields: ['id'],
+    timestampFields: ['timestamp'],
   },
 };
 
 function asPayload(payload: unknown): Record<string, any> | null {
   return isObject(payload) && !Array.isArray(payload) ? payload as Record<string, any> : null;
+}
+
+function resolvePath(target: unknown, path: string | string[]): unknown {
+  const segments = Array.isArray(path) ? path : [path];
+  let current: unknown = target;
+  for (const segment of segments) {
+    if (current === undefined || current === null) return undefined;
+    if (typeof current !== 'object') return undefined;
+    current = (current as Record<string, any>)[segment];
+  }
+  return current;
 }
 
 function parsePaddleTimestamp(value: unknown): Date | null {
@@ -50,6 +80,22 @@ function parsePaddleTimestamp(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function parseUnixSecondsTimestamp(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(value * 1000);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      const date = new Date(numeric * 1000);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+  return null;
+}
+
 function coerceNow(now: Date | number | undefined): number {
   if (now instanceof Date) return now.getTime();
   if (typeof now === 'number') return now;
@@ -61,7 +107,7 @@ export function extractStableEventId(provider: WebhookProvider, payload: unknown
   if (!parsedPayload) return null;
 
   for (const field of PROVIDER_CONFIG[provider].idFields) {
-    const value = parsedPayload[field];
+    const value = resolvePath(parsedPayload, field);
     if (typeof value === 'string' && value.trim() !== '') return value.trim();
     if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   }
@@ -74,8 +120,15 @@ export function extractEventTimestamp(provider: WebhookProvider, payload: unknow
   if (!parsedPayload) return null;
 
   for (const field of PROVIDER_CONFIG[provider].timestampFields) {
-    const value = parsedPayload[field];
-    const timestamp = provider === 'paddle' ? parsePaddleTimestamp(value) : null;
+    const value = resolvePath(parsedPayload, field);
+    const customParser = PROVIDER_CONFIG[provider].parseTimestamp;
+    let timestamp: Date | null = null;
+    if (customParser) {
+      timestamp = customParser(value);
+    } else if (typeof value === 'string' || typeof value === 'number') {
+      const date = new Date(value);
+      timestamp = Number.isNaN(date.getTime()) ? null : date;
+    }
     if (timestamp) return timestamp;
   }
 
